@@ -152,14 +152,24 @@ class BackupService {
       this.currentJob.progress = 20;
       const foldersResult = await this.backupFolders();
       
-      this.currentJob.progress = 60;
-      const s3Result = await this.uploadToS3(foldersResult.filePath, 
+      this.currentJob.progress = 50;
+      // Subir archivo ZIP
+      const s3ZipResult = await this.uploadToS3(foldersResult.filePath, 
         s3Service.generateBackupKey('folders'), 
         { type: 'folders', jobId }
       );
       
+      this.currentJob.progress = 70;
+      // Subir archivo de detalle TXT
+      const s3DetailResult = await this.uploadToS3(foldersResult.detailFile.filePath, 
+        s3Service.generateBackupKey('folders-detail'), 
+        { type: 'folders-detail', jobId }
+      );
+      
       this.currentJob.progress = 90;
+      // Limpiar archivos temporales
       await this.cleanupFile(foldersResult.filePath);
+      await this.cleanupFile(foldersResult.detailFile.filePath);
       
       this.currentJob.progress = 100;
       
@@ -168,11 +178,15 @@ class BackupService {
         type: 'folders',
         success: true,
         foldersBackup: foldersResult,
-        s3Upload: s3Result,
+        s3Upload: {
+          zip: s3ZipResult,
+          detail: s3DetailResult
+        },
         endTime: new Date()
       };
       
       backupLogger.info(`Backup de carpetas completado - Job ID: ${jobId}`);
+      backupLogger.info(`Archivos subidos: ZIP (${s3ZipResult.key}) y Detalle (${s3DetailResult.key})`);
       return result;
     } finally {
       this.isRunning = false;
@@ -244,8 +258,9 @@ class BackupService {
         throw new Error('No hay carpetas configuradas para backup');
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const zipFileName = `folders-backup-${timestamp}.zip`;
+      const timestamp = new Date();
+      const timestampStr = timestamp.toISOString().replace(/[:.]/g, '-');
+      const zipFileName = `folders-backup-${timestampStr}.zip`;
       const zipPath = path.join(__dirname, '../../temp', zipFileName);
 
       // Crear archivo ZIP
@@ -293,6 +308,9 @@ class BackupService {
       // Verificar archivo creado
       const zipStats = await fs.stat(zipPath);
       
+      // Generar archivo de detalle
+      const detailResult = await this.generateBackupDetailFile(config.backupFolders, zipFileName, timestamp);
+      
       return {
         success: true,
         filePath: zipPath,
@@ -301,7 +319,8 @@ class BackupService {
         totalFiles,
         totalFolders: config.backupFolders.length,
         originalSize: totalSize,
-        compressionRatio: totalSize > 0 ? (zipStats.size / totalSize * 100).toFixed(2) : 0
+        compressionRatio: totalSize > 0 ? (zipStats.size / totalSize * 100).toFixed(2) : 0,
+        detailFile: detailResult
       };
     } catch (error) {
       backupLogger.error('Error al crear backup de carpetas:', error);
@@ -494,6 +513,98 @@ class BackupService {
     await scanDirectory(folderPath);
     
     return { fileCount, totalSize };
+  }
+
+  // Generar archivo TXT con detalle del contenido del backup
+  async generateBackupDetailFile(folders, zipFileName, timestamp) {
+    try {
+      const detailFileName = zipFileName.replace('.zip', '-detalle.txt');
+      const detailPath = path.join(__dirname, '../../temp', detailFileName);
+      
+      let content = `DETALLE DEL BACKUP DE CARPETAS\n`;
+      content += `=====================================\n\n`;
+      content += `Archivo ZIP: ${zipFileName}\n`;
+      content += `Fecha de creación: ${timestamp.toLocaleString('es-ES')}\n`;
+      content += `Carpetas incluidas: ${folders.length}\n\n`;
+      
+      let totalFiles = 0;
+      let totalSize = 0;
+      
+      for (const folderPath of folders) {
+        try {
+          content += `CARPETA: ${folderPath}\n`;
+          content += `${'='.repeat(50)}\n`;
+          
+          const folderDetails = await this.getFolderDetailedContent(folderPath);
+          content += folderDetails.content;
+          content += `\nResumen de la carpeta:\n`;
+          content += `- Archivos: ${folderDetails.fileCount}\n`;
+          content += `- Tamaño total: ${folderDetails.totalSizeMB} MB\n\n`;
+          
+          totalFiles += folderDetails.fileCount;
+          totalSize += folderDetails.totalSize;
+        } catch (error) {
+          content += `Error al procesar carpeta: ${error.message}\n\n`;
+        }
+      }
+      
+      content += `RESUMEN GENERAL\n`;
+      content += `===============\n`;
+      content += `Total de archivos: ${totalFiles}\n`;
+      content += `Tamaño total: ${(totalSize / (1024 * 1024)).toFixed(2)} MB\n`;
+      content += `Carpetas procesadas: ${folders.length}\n`;
+      
+      await fs.writeFile(detailPath, content, 'utf8');
+      
+      return {
+        success: true,
+        filePath: detailPath,
+        fileName: detailFileName
+      };
+    } catch (error) {
+      backupLogger.error('Error al generar archivo de detalle:', error);
+      throw error;
+    }
+  }
+
+  // Obtener contenido detallado de una carpeta
+  async getFolderDetailedContent(folderPath, relativePath = '') {
+    let content = '';
+    let fileCount = 0;
+    let totalSize = 0;
+    
+    try {
+      const items = await fs.readdir(folderPath, { withFileTypes: true });
+      
+      for (const item of items) {
+        const fullPath = path.join(folderPath, item.name);
+        const itemRelativePath = path.join(relativePath, item.name);
+        
+        if (item.isDirectory()) {
+          content += `📁 ${itemRelativePath}/\n`;
+          const subContent = await this.getFolderDetailedContent(fullPath, itemRelativePath);
+          content += subContent.content;
+          fileCount += subContent.fileCount;
+          totalSize += subContent.totalSize;
+        } else if (item.isFile()) {
+          const stats = await fs.stat(fullPath);
+          const sizeKB = (stats.size / 1024).toFixed(2);
+          const modifiedDate = stats.mtime.toLocaleDateString('es-ES');
+          content += `📄 ${itemRelativePath} (${sizeKB} KB - ${modifiedDate})\n`;
+          fileCount++;
+          totalSize += stats.size;
+        }
+      }
+    } catch (error) {
+      content += `Error al leer carpeta ${folderPath}: ${error.message}\n`;
+    }
+    
+    return {
+      content,
+      fileCount,
+      totalSize,
+      totalSizeMB: (totalSize / (1024 * 1024)).toFixed(2)
+    };
   }
 
   // Obtener estado actual del backup

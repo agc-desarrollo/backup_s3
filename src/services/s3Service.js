@@ -378,7 +378,9 @@ class S3Service {
     
     switch (type) {
       case 'folders':
-        return `backups/folders/${dateStr}/${timeStr}-folders.zip`;
+        return `backups/folders/${timeStr}-folders.zip`;
+      case 'folders-detail':
+        return `backups/folders/${timeStr}-folders-detalle.txt`;
       case 'database':
         return `backups/database/${dateStr}/${timeStr}-database.zip`;
       case 'full':

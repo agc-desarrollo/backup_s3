@@ -175,27 +175,54 @@ class FoldersBackupTester {
       }
     );
 
-    // 3. Si el backup fue exitoso, verificar que el archivo existe en S3
-    if (backupResponse.ok && backupResponse.data?.success && backupResponse.data?.result?.s3Upload?.s3Key) {
-      console.log('\n🔍 Verificando existencia del archivo en S3...');
-      const s3Key = backupResponse.data.result.s3Upload.s3Key;
-      const s3CheckResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(s3Key)}/details`);
+    // 3. Si el backup fue exitoso, verificar que los archivos existen en S3
+    if (backupResponse.ok && backupResponse.data?.success && backupResponse.data?.result?.s3Upload) {
+      console.log('\n🔍 Verificando existencia de archivos en S3...');
       
-      this.logTest(
-        'Verificar existencia del archivo en S3',
-        s3CheckResponse.ok && s3CheckResponse.data?.success,
-        {
-          message: s3CheckResponse.ok ? 
-            `Archivo encontrado en S3: ${s3Key} (${s3CheckResponse.data?.object?.sizeFormatted || 'tamaño desconocido'})` : 
-            `Archivo no encontrado en S3: ${s3Key}`,
-          error: !s3CheckResponse.ok ? s3CheckResponse.statusText : null,
-          response: s3CheckResponse.data
-        }
-      );
+      // 3.1. Verificar archivo ZIP
+      if (backupResponse.data.result.s3Upload.zip?.key) {
+        const zipKey = backupResponse.data.result.s3Upload.zip.key;
+        const zipCheckResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(zipKey)}/details`);
+        
+        this.logTest(
+          'Verificar existencia del archivo ZIP en S3',
+          zipCheckResponse.ok && zipCheckResponse.data?.success,
+          {
+            message: zipCheckResponse.ok ? 
+              `Archivo ZIP encontrado en S3: ${zipKey} (${zipCheckResponse.data?.object?.sizeFormatted || 'tamaño desconocido'})` : 
+              `Archivo ZIP no encontrado en S3: ${zipKey}`,
+            error: !zipCheckResponse.ok ? zipCheckResponse.statusText : null,
+            response: zipCheckResponse.data
+          }
+        );
 
-      // 3.1. Verificar que el backup contiene archivos de las carpetas
-      if (s3CheckResponse.ok && s3CheckResponse.data?.success) {
-        await this.verifyBackupContainsFolderData(s3Key);
+        // Verificar que el backup contiene archivos de las carpetas
+        if (zipCheckResponse.ok && zipCheckResponse.data?.success) {
+          await this.verifyBackupContainsFolderData(zipKey);
+        }
+      }
+      
+      // 3.2. Verificar archivo TXT de detalle
+      if (backupResponse.data.result.s3Upload.detail?.key) {
+        const detailKey = backupResponse.data.result.s3Upload.detail.key;
+        const detailCheckResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(detailKey)}/details`);
+        
+        this.logTest(
+          'Verificar existencia del archivo TXT de detalle en S3',
+          detailCheckResponse.ok && detailCheckResponse.data?.success,
+          {
+            message: detailCheckResponse.ok ? 
+              `Archivo TXT encontrado en S3: ${detailKey} (${detailCheckResponse.data?.object?.sizeFormatted || 'tamaño desconocido'})` : 
+              `Archivo TXT no encontrado en S3: ${detailKey}`,
+            error: !detailCheckResponse.ok ? detailCheckResponse.statusText : null,
+            response: detailCheckResponse.data
+          }
+        );
+        
+        // Verificar contenido del archivo TXT de detalle
+        if (detailCheckResponse.ok && detailCheckResponse.data?.success) {
+          await this.verifyDetailFileContent(detailKey);
+        }
       }
     }
 
@@ -246,6 +273,64 @@ class FoldersBackupTester {
     
     // Retornar la respuesta del backup para poder acceder a la ruta del archivo
     return backupResponse;
+  }
+
+  // Verificar contenido del archivo TXT de detalle
+  async verifyDetailFileContent(detailKey) {
+    try {
+      console.log(`\n📄 Descargando archivo de detalle para verificar contenido: ${detailKey}`);
+      
+      // Descargar el archivo de detalle desde el backend
+      const downloadResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(detailKey)}/download`, null, {}, true);
+      if (!downloadResponse.ok) {
+        throw new Error(`Error descargando archivo de detalle: ${downloadResponse.statusText}`);
+      }
+
+      // Obtener el contenido como texto
+      const buffer = downloadResponse.buffer;
+      const content = buffer.toString('utf-8');
+      console.log(`📄 Archivo de detalle descargado: ${buffer.length} bytes`);
+
+      // Verificar que el archivo contiene información esperada
+      const hasHeader = content.includes('DETALLE DEL BACKUP DE CARPETAS');
+      const hasTimestamp = content.includes('Fecha y hora:');
+      const hasSummary = content.includes('RESUMEN GENERAL');
+      const hasFolderDetails = content.includes('DETALLE POR CARPETA');
+      const hasFileCount = content.includes('Total de archivos:');
+      const hasTotalSize = content.includes('Tamaño total:');
+      
+      const isValidDetailFile = hasHeader && hasTimestamp && hasSummary && hasFolderDetails && hasFileCount && hasTotalSize;
+      
+      this.logTest(
+        'Verificar contenido del archivo TXT de detalle',
+        isValidDetailFile,
+        {
+          message: isValidDetailFile ? 
+            `Archivo de detalle válido con ${content.length} caracteres` : 
+            'El archivo de detalle no contiene la información esperada',
+          details: {
+            'Tamaño del archivo': `${buffer.length} bytes`,
+            'Caracteres de texto': content.length,
+            'Tiene encabezado': hasHeader,
+            'Tiene timestamp': hasTimestamp,
+            'Tiene resumen': hasSummary,
+            'Tiene detalle de carpetas': hasFolderDetails,
+            'Tiene conteo de archivos': hasFileCount,
+            'Tiene tamaño total': hasTotalSize,
+            'Muestra del contenido': content.substring(0, 200) + (content.length > 200 ? '...' : '')
+          }
+        }
+      );
+      
+    } catch (error) {
+      this.logTest(
+        'Verificar contenido del archivo TXT de detalle',
+        false,
+        {
+          error: error.message
+        }
+      );
+    }
   }
 
   // Verificar que el backup contiene archivos de las carpetas
