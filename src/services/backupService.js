@@ -152,17 +152,20 @@ class BackupService {
       this.currentJob.progress = 20;
       const foldersResult = await this.backupFolders();
       
+      // Usar el mismo timestamp para ambos archivos
+      const backupTimestamp = foldersResult.timestamp || new Date();
+      
       this.currentJob.progress = 50;
       // Subir archivo ZIP
       const s3ZipResult = await this.uploadToS3(foldersResult.filePath, 
-        s3Service.generateBackupKey('folders'), 
+        s3Service.generateBackupKey('folders', backupTimestamp), 
         { type: 'folders', jobId }
       );
       
       this.currentJob.progress = 70;
       // Subir archivo de detalle TXT
       const s3DetailResult = await this.uploadToS3(foldersResult.detailFile.filePath, 
-        s3Service.generateBackupKey('folders-detail'), 
+        s3Service.generateBackupKey('folders-detail', backupTimestamp), 
         { type: 'folders-detail', jobId }
       );
       
@@ -320,7 +323,8 @@ class BackupService {
         totalFolders: config.backupFolders.length,
         originalSize: totalSize,
         compressionRatio: totalSize > 0 ? (zipStats.size / totalSize * 100).toFixed(2) : 0,
-        detailFile: detailResult
+        detailFile: detailResult,
+        timestamp: timestamp // Incluir el timestamp para usar en S3
       };
     } catch (error) {
       backupLogger.error('Error al crear backup de carpetas:', error);
