@@ -48,7 +48,7 @@ router.post('/now', async (req, res) => {
       if (type === 'database') {
         result = await backupService.runDatabaseBackup();
       } else if (type === 'folders') {
-        result = await backupService.backupFolders();
+        result = await backupService.runFoldersBackup();
       } else if (type === 'full') {
         const dbResult = await backupService.backupDatabase();
         const foldersResult = await backupService.backupFolders();

@@ -1,5 +1,4 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import compression from 'compression';
 import cors from 'cors';
@@ -24,7 +23,6 @@ import {
   validateContentType,
   sanitizeInput,
   detectSQLInjection,
-  globalRateLimit,
   validateSecurityHeaders,
   addSecurityHeaders
 } from './src/middleware/securityMiddleware.js';
@@ -46,32 +44,11 @@ app.use(cors({
 // Middleware de compresión
 app.use(compression());
 
-// Configuración de rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // límite de 100 requests por ventana de tiempo
-  message: {
-    error: 'Demasiadas solicitudes desde esta IP, intente nuevamente en 15 minutos.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
-// Rate limiter para API de backup
-const backupLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 10, // límite de 10 backups por ventana de tiempo
-  message: {
-    error: 'Demasiadas solicitudes de backup, intente nuevamente en 5 minutos.'
-  },
-  skipSuccessfulRequests: true,
-});
 
 // Aplicar middlewares de seguridad
 app.use(addSecurityHeaders);
 app.use(validateSecurityHeaders);
-app.use(limiter);
-app.use('/api/backup', backupLimiter);
 app.use(validatePayloadSize());
 app.use(validateContentType());
 

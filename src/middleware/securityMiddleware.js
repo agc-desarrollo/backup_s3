@@ -309,69 +309,9 @@ export function detectSQLInjection(req, res, next) {
   }
 }
 
-// Middleware para limitar la frecuencia de requests por IP
-const requestCounts = new Map();
-const WINDOW_SIZE = 15 * 60 * 1000; // 15 minutos
-const MAX_REQUESTS = 1000; // Máximo 1000 requests por ventana
 
-export function globalRateLimit(req, res, next) {
-  try {
-    const ip = req.ip;
-    const now = Date.now();
-    
-    // Obtener o crear contador para esta IP
-    let ipData = requestCounts.get(ip) || { count: 0, windowStart: now };
-    
-    // Resetear ventana si ha pasado el tiempo
-    if (now - ipData.windowStart > WINDOW_SIZE) {
-      ipData = { count: 0, windowStart: now };
-    }
-    
-    // Incrementar contador
-    ipData.count++;
-    requestCounts.set(ip, ipData);
-    
-    // Verificar límite
-    if (ipData.count > MAX_REQUESTS) {
-      logger.warn('Rate limit global excedido', {
-        ip,
-        count: ipData.count,
-        maxRequests: MAX_REQUESTS,
-        windowSize: WINDOW_SIZE / 1000 / 60 // en minutos
-      });
-      
-      return res.status(429).json({
-        success: false,
-        message: 'Demasiadas solicitudes. Intente nuevamente más tarde.',
-        code: 'RATE_LIMIT_EXCEEDED',
-        retryAfter: Math.ceil((WINDOW_SIZE - (now - ipData.windowStart)) / 1000)
-      });
-    }
-    
-    // Limpiar entradas antiguas periódicamente
-    if (Math.random() < 0.01) { // 1% de probabilidad
-      cleanupOldEntries();
-    }
-    
-    next();
-    
-  } catch (error) {
-    logger.error('Error en rate limiting global:', error);
-    next(); // Continuar en caso de error
-  }
-}
 
-// Limpiar entradas antiguas del rate limiting
-function cleanupOldEntries() {
-  const now = Date.now();
-  const cutoff = now - WINDOW_SIZE;
-  
-  for (const [ip, data] of requestCounts.entries()) {
-    if (data.windowStart < cutoff) {
-      requestCounts.delete(ip);
-    }
-  }
-}
+
 
 // Middleware para validar headers de seguridad
 export function validateSecurityHeaders(req, res, next) {
@@ -457,7 +397,6 @@ export default {
   validateContentType,
   sanitizeInput,
   detectSQLInjection,
-  globalRateLimit,
   validateSecurityHeaders,
   addSecurityHeaders
 };

@@ -1,6 +1,4 @@
 import fetch from 'node-fetch';
-import { CookieJar } from 'tough-cookie';
-import fetchCookie from 'fetch-cookie';
 import AdmZip from 'adm-zip';
 
 // Configuración del servidor
@@ -10,9 +8,7 @@ const API_BASE = `${BASE_URL}/api`;
 // Token de autenticación para API
 const API_TOKEN = 'AABBCC';
 
-// Crear instancia de fetch con soporte para cookies
-const cookieJar = new CookieJar();
-const fetchWithCookies = fetchCookie(fetch, cookieJar);
+
 
 // Clase para probar backup de base de datos
 class DatabaseBackupTester {
@@ -27,7 +23,7 @@ class DatabaseBackupTester {
 
   // Método para realizar peticiones HTTP con timeout de 10 segundos
   async makeRequest(method, endpoint, data = null, headers = {}, returnBuffer = false) {
-    // Agregar delay para evitar rate limiting
+    // Agregar delay entre peticiones
     await new Promise(resolve => setTimeout(resolve, 100));
 
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
@@ -56,7 +52,7 @@ class DatabaseBackupTester {
 
       // Ejecutar la petición con timeout
       const response = await Promise.race([
-        fetchWithCookies(url, options),
+        fetch(url, options),
         timeoutPromise
       ]);
 
