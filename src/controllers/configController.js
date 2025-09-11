@@ -9,7 +9,6 @@ const router = express.Router();
 // Esquema de validación para configuración completa
 const configSchema = Joi.object({
   backupFolders: Joi.array().items(Joi.string().min(1)).default([]),
-  cronSchedule: Joi.string().required(),
   updatedAt: Joi.string().isoDate().optional()
 });
 
@@ -28,7 +27,6 @@ router.get('/', async (req, res) => {
     // Configuración segura sin información sensible
     const safeConfig = {
       backupFolders: config.backupFolders,
-      cronSchedule: config.cronSchedule,
       updatedAt: config.updatedAt
     };
 
@@ -89,8 +87,7 @@ router.post('/', async (req, res) => {
     logger.info(`Configuración actualizada por: ${userInfo}`, {
       ip: req.ip,
       changes: {
-        foldersCount: newConfig.backupFolders.length,
-        cronSchedule: newConfig.cronSchedule
+        foldersCount: newConfig.backupFolders.length
       }
     });
 

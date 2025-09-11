@@ -2,9 +2,9 @@
 
 ## 1. Descripción General del Producto
 
-Sistema integral de backup automatizado que permite respaldar carpetas locales y bases de datos a almacenamiento compatible con S3, con interfaz web de gestión y autenticación por sesiones.
+Sistema integral de backup que permite respaldar carpetas locales y bases de datos a almacenamiento compatible con S3, con interfaz web de gestión y autenticación por sesiones.
 
-El producto resuelve la necesidad de automatizar backups de archivos y bases de datos con una solución autocontenida que incluye interfaz de administración web, programación de tareas y gestión de logs.
+El producto resuelve la necesidad de gestionar backups de archivos y bases de datos con una solución autocontenida que incluye interfaz de administración web y gestión de logs.
 
 ## 2. Características Principales
 
@@ -41,7 +41,7 @@ Nuestros requerimientos de sistema de backup consisten en las siguientes página
 1. El administrador accede al sistema mediante login
 2. Configura credenciales de bases de datos (las credenciales S3 se configuran en el archivo .env del servidor)
 3. Selecciona carpetas para backup
-4. Programa intervalos de backup automático
+4. Ejecuta backups manuales cuando sea necesario
 5. Monitorea operaciones a través de logs
 6. Puede ejecutar backups manuales cuando sea necesario
 

@@ -256,7 +256,6 @@ export function detectSQLInjection(req, res, next) {
       if (typeof value === 'string') {
         // Excluir campos específicos que pueden contener caracteres especiales legítimos
         const excludedPaths = [
-          'body.cronSchedule', 'query.cronSchedule',
           'body.s3Config.endpoint', 'body.s3Config.accessKey', 'body.s3Config.secretKey',
           'body.dbConfig.password', 'body.dbConfig.username'
         ];

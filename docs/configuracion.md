@@ -1,13 +1,12 @@
 # Configuración del Sistema de Backup
 
 ## Descripción
-Este sistema permite realizar backups automáticos de:
+Este sistema permite realizar backups manuales de:
 - Base de datos MySQL
 - Carpetas específicas del sistema
 
 ## Características
-- Subida automática a S3
-- Programación con cron
+- Subida a S3
 - API REST para control manual
 - Logs detallados
 

@@ -13,7 +13,6 @@ const CONFIG_PATH = path.join(__dirname, '../../config/config.json');
 // Configuración por defecto
 const DEFAULT_CONFIG = {
   backupFolders: [],
-  cronSchedule: '0 2 * * *', // Diario a las 2 AM
   updatedAt: new Date().toISOString()
 };
 
@@ -112,10 +111,7 @@ class ConfigService {
       errors.push('backupFolders debe ser un array');
     }
 
-    // Validar expresión cron
-    if (!config.cronSchedule) {
-      errors.push('Programación cron requerida');
-    }
+
 
     if (errors.length > 0) {
       throw new Error(`Errores de validación: ${errors.join(', ')}`);
@@ -138,8 +134,7 @@ class ConfigService {
     return {
       dbConfigured: !!(dbConfig.host && dbConfig.database),
       foldersConfigured: this.config.backupFolders.length > 0,
-      lastUpdated: this.config.updatedAt,
-      cronSchedule: this.config.cronSchedule
+      lastUpdated: this.config.updatedAt
     };
   }
 

@@ -13,7 +13,6 @@ graph TD
     F --> H[Clientes de BD PostgreSQL/MySQL]
     F --> I[Sistema de Archivos Local]
     B --> J[Servicio de Logs Winston]
-    B --> K[Programador node-cron]
     
     subgraph "Capa Frontend"
         A
@@ -29,7 +28,6 @@ graph TD
     subgraph "Capa de Servicios"
         F
         J
-        K
     end
     
     subgraph "Servicios Externos"
@@ -49,7 +47,7 @@ graph TD
 
   * winston (logging)
 
-  * node-cron (programación)
+
 
   * aws-sdk o @aws-sdk/client-s3 (S3)
 
@@ -124,7 +122,7 @@ Request (POST):
 | -------------------- | ------------------ | ------------ | ----------------------------------------------------------------- |
 | dbConfig             | object             | true         | Configuración BD (type, host, port, username, password, database) |
 | backupFolders        | array              | true         | Array de rutas de carpetas para backup                            |
-| cronSchedule         | string             | true         | Expresión cron para programación                                  |
+
 
 **Nota:** La configuración S3 ahora se lee desde variables de entorno (.env) en lugar de la interfaz web.
 
@@ -215,7 +213,7 @@ erDiagram
         object s3Config
         object dbConfig
         array backupFolders
-        string cronSchedule
+
         timestamp updatedAt
     }
     
@@ -265,7 +263,7 @@ erDiagram
     "/path/to/folder1",
     "/path/to/folder2"
   ],
-  "cronSchedule": "0 2 * * *",
+
   "updatedAt": "2024-01-01T00:00:00Z"
 }
 ```
