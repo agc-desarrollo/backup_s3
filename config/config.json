@@ -1,0 +1,15 @@
+{
+  "dbConfig": {
+    "type": "mysql",
+    "host": "161.35.156.197",
+    "port": 46103,
+    "username": "remoto",
+    "password": "X8i2YY27m0mFK1*Iu-r0fi340d)TbI177x88wyPN",
+    "database": "trabajadores_dev"
+  },
+  "backupFolders": [
+    "C:\\Users\\jntac\\Documents\\prj\\AGC\\backup_s3\\docs"
+  ],
+  "cronSchedule": "0 3 * * *",
+  "updatedAt": "2025-09-11T17:41:06.305Z"
+}

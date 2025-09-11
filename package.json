@@ -1,0 +1,51 @@
+{
+  "name": "backup-s3-system",
+  "version": "1.0.0",
+  "description": "API simplificada de backup automatizado para respaldar carpetas y bases de datos a S3",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test-api-services.js",
+    "test:api": "node test-api-services.js",
+    "test:s3": "node test-s3-service.js"
+  },
+  "keywords": [
+    "backup",
+    "s3",
+    "database",
+    "postgresql",
+    "mysql",
+    "express",
+    "automation"
+  ],
+  "author": "Sistema de Backup S3",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.454.0",
+    "adm-zip": "^0.5.16",
+    "archiver": "^6.0.2",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "fetch-cookie": "^3.1.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "mysql2": "^3.6.5",
+    "pg": "^8.11.3",
+    "tough-cookie": "^6.0.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1"
+  },
+  "devDependencies": {
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
