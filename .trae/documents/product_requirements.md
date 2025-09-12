@@ -2,79 +2,93 @@
 
 ## 1. Descripción General del Producto
 
-Sistema integral de backup que permite respaldar carpetas locales y bases de datos a almacenamiento compatible con S3, con interfaz web de gestión y autenticación por sesiones.
+Sistema integral de backup que permite respaldar carpetas locales y bases de datos a almacenamiento compatible con S3, mediante una API REST con autenticación por token.
 
-El producto resuelve la necesidad de gestionar backups de archivos y bases de datos con una solución autocontenida que incluye interfaz de administración web y gestión de logs.
+El producto resuelve la necesidad de gestionar backups de archivos y bases de datos con una solución autocontenida que incluye API REST completa, gestión de logs avanzada y funcionalidades de administración de almacenamiento S3.
 
 ## 2. Características Principales
 
-### 2.1 Roles de Usuario
+### 2.1 Autenticación y Acceso
 
-| Rol | Método de Registro | Permisos Principales |
-|-----|-------------------|---------------------|
-| Administrador | Credenciales en archivo JSON | Acceso completo a configuración, logs y operaciones de backup |
+| Método de Autenticación | Configuración | Permisos |
+|------------------------|---------------|----------|
+| API Token | Variable de entorno API_TOKEN | Acceso completo a todos los endpoints de la API |
 
-### 2.2 Módulo de Características
+### 2.2 Módulos de API
 
-Nuestros requerimientos de sistema de backup consisten en las siguientes páginas principales:
+Nuestros requerimientos de sistema de backup consisten en los siguientes módulos de API:
 
-1. **Página de Login**: formulario de autenticación, validación de sesión
-2. **Dashboard Principal**: resumen de estado, logs recientes, controles de backup manual
-3. **Configuración**: gestión de credenciales S3, configuración de bases de datos, carpetas a respaldar
-4. **Logs**: visualización de logs de operaciones, filtros por fecha
+1. **API de Backup**: ejecución de backups manuales, consulta de estado y estadísticas
+2. **API de Configuración**: gestión de carpetas a respaldar, información del sistema
+3. **API de Logs**: consulta de logs con filtros avanzados, estadísticas y exportación
+4. **API de S3**: gestión de objetos, búsqueda, estadísticas de almacenamiento
+5. **API de Salud**: endpoint de verificación del estado del servicio
 
-### 2.3 Detalles de Páginas
+### 2.3 Detalles de Endpoints de API
 
-| Nombre de Página | Nombre del Módulo | Descripción de Características |
-|------------------|-------------------|--------------------------------|
-| Página de Login | Formulario de Autenticación | Validar credenciales de usuario, establecer sesión, redirección post-login |
-| Dashboard Principal | Panel de Control | Mostrar estado del sistema, logs recientes, botón de backup manual, estadísticas de operaciones |
-| Configuración | Gestión de Base de Datos | Configurar credenciales PostgreSQL/MySQL, host, puerto, nombre de BD |
-| Configuración | Gestión de Carpetas | Seleccionar carpetas para backup, validar rutas, configurar exclusiones |
-| Logs | Visualización de Logs | Mostrar logs paginados, filtros por fecha/tipo, descarga de logs |
+| Endpoint | Módulo | Descripción de Características |
+|----------|--------|--------------------------------|
+| POST /api/backup/now | Gestión de Backup | Ejecutar backup manual (completo, carpetas o base de datos) |
+| GET /api/backup/status | Gestión de Backup | Consultar estado actual de backups en ejecución |
+| GET /api/backup/stats | Gestión de Backup | Obtener estadísticas de operaciones de backup |
+| GET /api/config | Gestión de Configuración | Obtener configuración actual de carpetas |
+| POST /api/config | Gestión de Configuración | Actualizar configuración de carpetas a respaldar |
+| GET /api/logs | Gestión de Logs | Consultar logs con paginación y filtros avanzados |
+| GET /api/s3/objects | Gestión de S3 | Listar objetos en el almacenamiento S3 |
+| GET /api/s3/stats | Gestión de S3 | Obtener estadísticas de uso del almacenamiento |
+| GET /api/health | Monitoreo | Verificar estado del servicio |
 
-**Nota:** La configuración S3 (endpoint, bucket, credenciales) ahora se gestiona a través de variables de entorno en el archivo .env del servidor.
+**Nota:** Toda la configuración (S3, base de datos, autenticación) se gestiona a través de variables de entorno en el archivo .env del servidor.
 
 ## 3. Proceso Principal
 
-**Flujo de Administrador:**
-1. El administrador accede al sistema mediante login
-2. Configura credenciales de bases de datos (las credenciales S3 se configuran en el archivo .env del servidor)
-3. Selecciona carpetas para backup
-4. Ejecuta backups manuales cuando sea necesario
-5. Monitorea operaciones a través de logs
-6. Puede ejecutar backups manuales cuando sea necesario
+**Flujo de Operación de API:**
+1. El cliente se autentica usando el API token en el header
+2. Configura carpetas para backup mediante POST /api/config
+3. Ejecuta backups manuales mediante POST /api/backup/now
+4. Monitorea estado de backups mediante GET /api/backup/status
+5. Consulta logs y estadísticas mediante endpoints de logs y S3
+6. Gestiona objetos en S3 mediante endpoints de gestión de almacenamiento
 
 ```mermaid
 graph TD
-    A[Página de Login] --> B[Dashboard Principal]
-    B --> C[Configuración]
-    B --> D[Logs]
-    C --> F[Config BD]
-    C --> G[Config Carpetas]
-    B --> H[Backup Manual]
+    A[Cliente API] --> B[Autenticación Token]
+    B --> C[API de Configuración]
+    B --> D[API de Backup]
+    B --> E[API de Logs]
+    B --> F[API de S3]
+    D --> G[Backup Manual]
+    E --> H[Consulta Logs]
+    F --> I[Gestión S3]
+    C --> J[Config Carpetas]
 ```
 
-## 4. Diseño de Interfaz de Usuario
+## 4. Especificaciones de API
 
-### 4.1 Estilo de Diseño
+### 4.1 Formato de Respuesta
 
-- **Colores primarios**: Azul (#2563eb) y gris oscuro (#1f2937)
-- **Colores secundarios**: Verde (#10b981) para éxito, rojo (#ef4444) para errores
-- **Estilo de botones**: Redondeados con sombras sutiles
-- **Fuente**: Inter o system-ui, tamaños 14px-18px
-- **Estilo de layout**: Diseño de tarjetas con navegación lateral
-- **Iconos**: Feather icons o similar para consistencia
+- **Formato estándar**: JSON con estructura consistente
+- **Códigos de estado**: HTTP estándar (200, 400, 401, 404, 500)
+- **Estructura de éxito**: `{"success": true, "data": {...}}`
+- **Estructura de error**: `{"success": false, "message": "...", "code": "..."}`
+- **Paginación**: Incluye metadatos de página, límite y total
+- **Timestamps**: Formato ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)
 
-### 4.2 Resumen de Diseño de Páginas
+### 4.2 Autenticación y Seguridad
 
-| Nombre de Página | Nombre del Módulo | Elementos de UI |
-|------------------|-------------------|----------------|
-| Página de Login | Formulario de Autenticación | Formulario centrado, campos de entrada con validación visual, botón principal azul |
-| Dashboard Principal | Panel de Control | Layout de tarjetas, indicadores de estado con colores, tabla de logs recientes |
-| Configuración | Gestión de Credenciales BD | Formularios tabulados, campos de entrada agrupados, botones de prueba de conexión |
-| Logs | Visualización de Logs | Tabla paginada, filtros desplegables, códigos de color para tipos de log |
+| Aspecto | Implementación |
+|---------|----------------|
+| Autenticación | Header `api-token` requerido en todas las peticiones |
+| Validación | Joi schemas para validación de entrada |
+| Sanitización | Middleware de sanitización de entrada y detección SQL injection |
+| Rate Limiting | Limitación de peticiones por IP |
+| Headers de Seguridad | Helmet.js para headers de seguridad |
+| Logs de Seguridad | Registro de intentos de acceso no autorizados |
 
-### 4.3 Responsividad
+### 4.3 Manejo de Errores
 
-Diseño desktop-first con adaptación móvil básica, optimización para interacción táctil en formularios y botones principales.
+- **Validación de entrada**: Errores 400 con detalles específicos
+- **Autenticación**: Errores 401 con códigos de error específicos
+- **Recursos no encontrados**: Errores 404 con mensajes descriptivos
+- **Conflictos**: Errores 409 para operaciones en conflicto (backup en progreso)
+- **Errores internos**: Errores 500 con logging detallado (sin exposición de detalles en producción)
