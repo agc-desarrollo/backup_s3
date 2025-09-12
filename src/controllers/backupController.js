@@ -318,9 +318,9 @@ router.post('/cleanup', async (req, res) => {
 
 // Función auxiliar para determinar el tipo de backup desde la clave S3
 function getBackupTypeFromKey(key) {
-  if (key.includes('/folders/')) return 'folders';
-  if (key.includes('/database/')) return 'database';
-  if (key.includes('/full/')) return 'full';
+  if (key.includes('carpetas ')) return 'folders';
+  if (key.includes('database ')) return 'database';
+  if (key.includes('completo ')) return 'full';
   return 'unknown';
 }
 

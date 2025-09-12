@@ -224,7 +224,7 @@ class BackupService {
       console.log('📊 Progreso: 60% - Subiendo archivo a S3...');
       this.currentJob.progress = 60;
       const s3Result = await this.uploadToS3(dbResult.filePath, 
-        s3Service.generateBackupKey('database'), 
+        s3Service.generateBackupKey('database', new Date()), 
         { type: 'database', jobId }
       );
       
@@ -262,8 +262,8 @@ class BackupService {
       }
 
       const timestamp = new Date();
-      const timestampStr = timestamp.toISOString().replace(/[:.]/g, '-');
-      const zipFileName = `folders-backup-${timestampStr}.zip`;
+      const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+      const zipFileName = `carpetas ${dateStr}.zip`;
       const zipPath = path.join(__dirname, '../../temp', zipFileName);
 
       // Crear archivo ZIP
@@ -354,8 +354,9 @@ class BackupService {
       }
       
       // Solo comprimir si el backup no está comprimido (archivo SQL)
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const zipFileName = `database-backup-${timestamp}.zip`;
+      const timestamp = new Date();
+      const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+      const zipFileName = `database ${dateStr}.zip`;
       const zipPath = path.join(__dirname, '../../temp', zipFileName);
 
       const archive = archiver('zip', { zlib: { level: 9 } });
@@ -424,7 +425,7 @@ class BackupService {
     // Subir backup de carpetas
     if (results.folders && results.folders.success) {
       try {
-        const s3Key = s3Service.generateBackupKey('folders');
+        const s3Key = s3Service.generateBackupKey('folders', results.folders.timestamp);
         const uploadResult = await this.uploadToS3(results.folders.filePath, s3Key, {
           type: 'folders',
           jobId: results.jobId,
@@ -440,7 +441,7 @@ class BackupService {
     // Subir backup de base de datos
     if (results.database && results.database.success) {
       try {
-        const s3Key = s3Service.generateBackupKey('database');
+        const s3Key = s3Service.generateBackupKey('database', new Date());
         const uploadResult = await this.uploadToS3(results.database.filePath, s3Key, {
           type: 'database',
           jobId: results.jobId,

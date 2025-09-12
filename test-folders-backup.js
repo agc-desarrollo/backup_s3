@@ -468,12 +468,12 @@ class FoldersBackupTester {
       }
       
       // Si no hay información de S3, intentar verificar a través de la API
-      const response = await this.makeRequest('GET', '/s3/objects?prefix=backups/folders/');
+      const response = await this.makeRequest('GET', '/s3/objects?prefix=backups/');
       
       if (response.ok && response.data?.success) {
         const objects = response.data.objects || [];
         const folderBackups = objects.filter(obj => 
-          obj.key && obj.key.includes('folders') && 
+          obj.key && obj.key.includes('carpetas ') && 
           obj.lastModified && new Date(obj.lastModified) > new Date(Date.now() - 5 * 60 * 1000) // Últimos 5 minutos
         );
         
@@ -534,22 +534,27 @@ class FoldersBackupTester {
   async verifyFoldersInS3() {
     console.log('\n🗂️ Verificando carpetas de backup en S3...');
     
-    // Buscar objetos con prefijo 'folders'
-    const foldersResponse = await this.makeRequest('GET', '/s3/objects?prefix=backups/folders/');
+    // Buscar objetos con prefijo 'backups' y filtrar por carpetas
+    const foldersResponse = await this.makeRequest('GET', '/s3/objects?prefix=backups/');
+    
+    // Filtrar solo archivos de carpetas
+    const folderBackups = foldersResponse.data?.objects?.filter(obj => 
+      obj.key && obj.key.includes('carpetas ')
+    ) || [];
     
     this.logTest(
       'Verificar existencia de backups de carpetas en S3',
-      foldersResponse.ok && foldersResponse.data?.success && foldersResponse.data?.objects?.length > 0,
+      foldersResponse.ok && foldersResponse.data?.success && folderBackups.length > 0,
       {
-        message: `Backups de carpetas encontrados: ${foldersResponse.data?.objects?.length || 0}`,
+        message: `Backups de carpetas encontrados: ${folderBackups.length}`,
         error: !foldersResponse.ok ? foldersResponse.statusText : null,
         response: foldersResponse.data
       }
     );
 
     // Si hay backups, mostrar información del más reciente
-    if (foldersResponse.ok && foldersResponse.data?.objects?.length > 0) {
-      const latestBackup = foldersResponse.data.objects[0]; // Asumiendo que están ordenados por fecha
+    if (foldersResponse.ok && folderBackups.length > 0) {
+      const latestBackup = folderBackups[0]; // Asumiendo que están ordenados por fecha
       console.log(`📁 Backup más reciente: ${latestBackup.key} (${latestBackup.sizeFormatted})`);
       
       // Verificar detalles del backup más reciente

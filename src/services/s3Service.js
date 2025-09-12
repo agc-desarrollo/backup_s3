@@ -374,20 +374,18 @@ class S3Service {
   // Generar clave S3 para backup
   generateBackupKey(type, timestamp = new Date()) {
     const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
-    const timeStr = timestamp.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-'); // HH-MM-SS
-    const baseFileName = `${dateStr}-${timeStr}`; // Nombre base común para ambos archivos
     
     switch (type) {
       case 'folders':
-        return `backups/folders/${baseFileName}-folders.zip`;
+        return `backups/carpetas ${dateStr}.zip`;
       case 'folders-detail':
-        return `backups/folders/${baseFileName}-folders-detalle.txt`;
+        return `backups/carpetas ${dateStr}-detalle.txt`;
       case 'database':
-        return `backups/database/${baseFileName}-database.zip`;
+        return `backups/database ${dateStr}.zip`;
       case 'full':
-        return `backups/full/${dateStr}/${timeStr}-full-backup.zip`;
+        return `backups/completo ${dateStr}.zip`;
       default:
-        return `backups/misc/${dateStr}/${timeStr}-${type}.zip`;
+        return `backups/${type} ${dateStr}.zip`;
     }
   }
 
