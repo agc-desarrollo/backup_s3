@@ -262,8 +262,11 @@ class BackupService {
       }
 
       const timestamp = new Date();
-      const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
-      const zipFileName = `carpetas ${dateStr}.zip`;
+      const isoString = timestamp.toISOString();
+      const dateStr = isoString.split('T')[0]; // YYYY-MM-DD
+      const timeStr = isoString.split('T')[1].substring(0, 5).replace(':', '-'); // HH-mm
+      const dateTimeStr = `${dateStr}-${timeStr}`; // YYYY-MM-DD-HH-mm
+      const zipFileName = `carpetas ${dateTimeStr}.zip`;
       const zipPath = path.join(__dirname, '../../temp', zipFileName);
 
       // Crear archivo ZIP
@@ -355,8 +358,11 @@ class BackupService {
       
       // Solo comprimir si el backup no está comprimido (archivo SQL)
       const timestamp = new Date();
-      const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
-      const zipFileName = `database ${dateStr}.zip`;
+      const isoString = timestamp.toISOString();
+      const dateStr = isoString.split('T')[0]; // YYYY-MM-DD
+      const timeStr = isoString.split('T')[1].substring(0, 5).replace(':', '-'); // HH-mm
+      const dateTimeStr = `${dateStr}-${timeStr}`; // YYYY-MM-DD-HH-mm
+      const zipFileName = `database ${dateTimeStr}.zip`;
       const zipPath = path.join(__dirname, '../../temp', zipFileName);
 
       const archive = archiver('zip', { zlib: { level: 9 } });

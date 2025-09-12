@@ -373,19 +373,22 @@ class S3Service {
 
   // Generar clave S3 para backup
   generateBackupKey(type, timestamp = new Date()) {
-    const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+    const isoString = timestamp.toISOString();
+    const dateStr = isoString.split('T')[0]; // YYYY-MM-DD
+    const timeStr = isoString.split('T')[1].substring(0, 5).replace(':', '-'); // HH-mm
+    const dateTimeStr = `${dateStr}-${timeStr}`; // YYYY-MM-DD-HH-mm
     
     switch (type) {
       case 'folders':
-        return `backups/carpetas ${dateStr}.zip`;
+        return `backups/carpetas ${dateTimeStr}.zip`;
       case 'folders-detail':
-        return `backups/carpetas ${dateStr}-detalle.txt`;
+        return `backups/carpetas ${dateTimeStr}-detalle.txt`;
       case 'database':
-        return `backups/database ${dateStr}.zip`;
+        return `backups/database ${dateTimeStr}.zip`;
       case 'full':
-        return `backups/completo ${dateStr}.zip`;
+        return `backups/completo ${dateTimeStr}.zip`;
       default:
-        return `backups/${type} ${dateStr}.zip`;
+        return `backups/${type} ${dateTimeStr}.zip`;
     }
   }
 
