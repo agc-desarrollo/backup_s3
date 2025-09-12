@@ -383,7 +383,7 @@ class S3Service {
       case 'folders-detail':
         return `backups/folders/${baseFileName}-folders-detalle.txt`;
       case 'database':
-        return `backups/database/${dateStr}/${timeStr}-database.zip`;
+        return `backups/database/${baseFileName}-database.zip`;
       case 'full':
         return `backups/full/${dateStr}/${timeStr}-full-backup.zip`;
       default:
