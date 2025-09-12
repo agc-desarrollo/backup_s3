@@ -1,12 +1,17 @@
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
+import dotenv from 'dotenv';
 
-// Configuración del servidor
-const BASE_URL = 'http://localhost:3000';
+// Cargar variables de entorno
+dotenv.config();
+
+// Configuración del servidor desde variables de entorno
+const PORT = process.env.PORT || 3000;
+const BASE_URL = `http://localhost:${PORT}`;
 const API_BASE = `${BASE_URL}/api`;
 
-// Token de autenticación para API
-const API_TOKEN = 'AABBCC';
+// Token de autenticación para API desde variables de entorno
+const API_TOKEN = process.env.API_TOKEN;
 
 
 
