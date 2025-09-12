@@ -333,8 +333,20 @@ class DatabaseService {
             // Eliminar el archivo SQL original
             await fs.unlink(backupPath);
             
+            // Filtrar warnings de password de mysqldump del output
+            const filteredOutput = stderr
+              .split('\n')
+              .filter(line => {
+                const lowerLine = line.toLowerCase();
+                return !lowerLine.includes('warning') || 
+                       (!lowerLine.includes('password') && 
+                        !lowerLine.includes('using a password on the command line'));
+              })
+              .join('\n')
+              .trim();
+            
             logger.info(`Backup mysqldump comprimido creado: ${zipPath}`);
-            resolve({ success: true, output: stderr, tool: 'mysqldump', zipPath });
+            resolve({ success: true, output: filteredOutput, tool: 'mysqldump', zipPath });
           } catch (error) {
             reject(new Error(`Error comprimiendo backup mysqldump: ${error.message}`));
           }
@@ -399,7 +411,20 @@ class DatabaseService {
           try {
             // Procesar la lista de tablas y crear backup tabla por tabla
             const backupResult = await this.createTableByTableBackup(backupPath, connectionUri, stdout);
-            resolve({ success: true, output: stdout, tool: 'mysqlsh', zipPath: backupResult.zipPath });
+            
+            // Filtrar warnings de password de MySQL Shell del stderr si los hay
+            const filteredStderr = stderr
+              .split('\n')
+              .filter(line => {
+                const lowerLine = line.toLowerCase();
+                return !lowerLine.includes('warning') || 
+                       (!lowerLine.includes('password') && 
+                        !lowerLine.includes('using a password on the command line'));
+              })
+              .join('\n')
+              .trim();
+            
+            resolve({ success: true, output: stdout, tool: 'mysqlsh', zipPath: backupResult.zipPath, stderr: filteredStderr });
           } catch (error) {
             reject(new Error(`Error creando backup tabla por tabla: ${error.message}`));
           }
