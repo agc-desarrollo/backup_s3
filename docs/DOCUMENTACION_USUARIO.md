@@ -137,7 +137,12 @@ curl -X POST \
   -d '{"type": "full"}' \
   http://localhost:3000/api/backup/now
 
-# Backup solo de carpetas
+# Backup solo de carpetas (usando endpoint específico - sin parámetros)
+curl -X POST \
+  -H "api-token: tu-token" \
+  http://localhost:3000/api/backup/folders
+
+# Backup solo de carpetas (usando endpoint general)
 curl -X POST \
   -H "Content-Type: application/json" \
   -H "api-token: tu-token" \
@@ -145,16 +150,16 @@ curl -X POST \
   http://localhost:3000/api/backup/now
 
 # Backup solo de base de datos (usando endpoint específico)
- curl -X POST \
-   -H "api-token: tu-token" \
-   http://localhost:3000/api/backup/database
+curl -X POST \
+  -H "api-token: tu-token" \
+  http://localhost:3000/api/backup/database
  
- # Backup solo de base de datos (usando endpoint general)
- curl -X POST \
-   -H "Content-Type: application/json" \
-   -H "api-token: tu-token" \
-   -d '{"type": "database"}' \
-   http://localhost:3000/api/backup/now
+# Backup solo de base de datos (usando endpoint general)
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "api-token: tu-token" \
+  -d '{"type": "database"}' \
+  http://localhost:3000/api/backup/now
 ```
 
 **Obtener Estado del Backup**

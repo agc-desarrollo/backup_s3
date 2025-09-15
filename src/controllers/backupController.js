@@ -76,6 +76,59 @@ router.post('/database', async (req, res) => {
   }
 });
 
+// POST /api/backup/folders - Ejecutar backup de carpetas (sin parámetros)
+router.post('/folders', async (req, res) => {
+  try {
+    const userInfo = 'API usuario';
+
+    // Verificar si ya hay un backup en ejecución
+    if (backupService.isBackupRunning()) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya hay un backup en ejecución',
+        currentJob: backupService.getCurrentJobStatus()
+      });
+    }
+
+    backupLogger.info(`Backup de carpetas iniciado por: ${userInfo}`, {
+      ip: req.ip
+    });
+
+    // Ejecutar backup de carpetas usando configuración del config.json
+    try {
+      const result = await backupService.runFoldersBackup();
+      
+      backupLogger.info(`Backup de carpetas completado para: ${userInfo}`, {
+        result
+      });
+      
+      // Responder con éxito
+      res.json({
+        success: true,
+        message: 'Backup de carpetas completado exitosamente',
+        data: result
+      });
+      
+    } catch (backupError) {
+      backupLogger.error(`Error en backup de carpetas para: ${userInfo}:`, backupError);
+      
+      // Responder con error de ejecución
+      res.status(500).json({
+        success: false,
+        message: 'Error al ejecutar backup de carpetas',
+        error: backupError.message
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error al iniciar backup de carpetas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+});
+
 // POST /api/backup/now - Ejecutar backup manual
 router.post('/now', async (req, res) => {
   try {

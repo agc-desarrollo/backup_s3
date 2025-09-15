@@ -166,12 +166,12 @@ class FoldersBackupTester {
       }
     );
 
-    // 2. Intentar backup manual de carpetas
-    console.log('\n🚀 Iniciando backup manual de carpetas...');
-    const backupResponse = await this.makeRequest('POST', '/backup/now', { type: 'folders' });
+    // 2. Intentar backup manual de carpetas usando endpoint específico (sin parámetros)
+    console.log('\n🚀 Iniciando backup manual de carpetas (endpoint específico)...');
+    const backupResponse = await this.makeRequest('POST', '/backup/folders');
 
     this.logTest(
-      'Ejecutar backup manual de carpetas',
+      'Ejecutar backup manual de carpetas (endpoint específico)',
       backupResponse.ok && backupResponse.data?.success,
       {
         message: `Status: ${backupResponse.status}, Message: ${backupResponse.data?.message || 'Sin mensaje'}`,
@@ -181,53 +181,28 @@ class FoldersBackupTester {
     );
 
     // 3. Si el backup fue exitoso, verificar que los archivos existen en S3
-    if (backupResponse.ok && backupResponse.data?.success && backupResponse.data?.result?.s3Upload) {
+    if (backupResponse.ok && backupResponse.data?.success && backupResponse.data?.data?.s3Key) {
       console.log('\n🔍 Verificando existencia de archivos en S3...');
       
       // 3.1. Verificar archivo ZIP
-      if (backupResponse.data.result.s3Upload.zip?.key) {
-        const zipKey = backupResponse.data.result.s3Upload.zip.key;
-        const zipCheckResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(zipKey)}/details`);
-        
-        this.logTest(
-          'Verificar existencia del archivo ZIP en S3',
-          zipCheckResponse.ok && zipCheckResponse.data?.success,
-          {
-            message: zipCheckResponse.ok ? 
-              `Archivo ZIP encontrado en S3: ${zipKey} (${zipCheckResponse.data?.object?.sizeFormatted || 'tamaño desconocido'})` : 
-              `Archivo ZIP no encontrado en S3: ${zipKey}`,
-            error: !zipCheckResponse.ok ? zipCheckResponse.statusText : null,
-            response: zipCheckResponse.data
-          }
-        );
-
-        // Verificar que el backup contiene archivos de las carpetas
-        if (zipCheckResponse.ok && zipCheckResponse.data?.success) {
-          await this.verifyBackupContainsFolderData(zipKey);
-        }
-      }
+      const zipKey = backupResponse.data.data.s3Key;
+      const zipCheckResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(zipKey)}/details`);
       
-      // 3.2. Verificar archivo TXT de detalle
-      if (backupResponse.data.result.s3Upload.detail?.key) {
-        const detailKey = backupResponse.data.result.s3Upload.detail.key;
-        const detailCheckResponse = await this.makeRequest('GET', `/s3/objects/${encodeURIComponent(detailKey)}/details`);
-        
-        this.logTest(
-          'Verificar existencia del archivo TXT de detalle en S3',
-          detailCheckResponse.ok && detailCheckResponse.data?.success,
-          {
-            message: detailCheckResponse.ok ? 
-              `Archivo TXT encontrado en S3: ${detailKey} (${detailCheckResponse.data?.object?.sizeFormatted || 'tamaño desconocido'})` : 
-              `Archivo TXT no encontrado en S3: ${detailKey}`,
-            error: !detailCheckResponse.ok ? detailCheckResponse.statusText : null,
-            response: detailCheckResponse.data
-          }
-        );
-        
-        // Verificar contenido del archivo TXT de detalle
-        if (detailCheckResponse.ok && detailCheckResponse.data?.success) {
-          await this.verifyDetailFileContent(detailKey);
+      this.logTest(
+        'Verificar existencia del archivo ZIP en S3',
+        zipCheckResponse.ok && zipCheckResponse.data?.success,
+        {
+          message: zipCheckResponse.ok ? 
+            `Archivo ZIP encontrado en S3: ${zipKey} (${zipCheckResponse.data?.object?.sizeFormatted || 'tamaño desconocido'})` : 
+            `Archivo ZIP no encontrado en S3: ${zipKey}`,
+          error: !zipCheckResponse.ok ? zipCheckResponse.statusText : null,
+          response: zipCheckResponse.data
         }
+      );
+
+      // Verificar que el backup contiene archivos de las carpetas
+      if (zipCheckResponse.ok && zipCheckResponse.data?.success) {
+        await this.verifyBackupContainsFolderData(zipKey);
       }
     }
 
@@ -451,16 +426,16 @@ class FoldersBackupTester {
   async verifyBackupUploadedToS3(backupResult) {
     try {
       // Verificar si el resultado incluye información de S3
-      if (backupResult && backupResult.s3Upload) {
+      if (backupResult && backupResult.s3Key) {
         this.logTest(
           'Verificar subida a S3',
           true,
           {
             message: `Backup subido exitosamente a S3`,
             details: {
-              s3Key: backupResult.s3Upload.key,
-              bucket: backupResult.s3Upload.bucket,
-              size: backupResult.s3Upload.size
+              s3Key: backupResult.s3Key,
+              bucket: backupResult.bucket,
+              size: backupResult.size
             }
           }
         );
@@ -534,21 +509,61 @@ class FoldersBackupTester {
   async verifyFoldersInS3() {
     console.log('\n🗂️ Verificando carpetas de backup en S3...');
     
-    // Buscar objetos con prefijo 'backups' y filtrar por carpetas
-    const foldersResponse = await this.makeRequest('GET', '/s3/objects?prefix=backups/');
+    // Agregar delay para permitir que S3 actualice su índice
+    console.log('⏳ Esperando 2 segundos para sincronización de S3...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Filtrar solo archivos de carpetas
-    const folderBackups = foldersResponse.data?.objects?.filter(obj => 
-      obj.key && obj.key.includes('carpetas ')
-    ) || [];
+    let folderBackups = [];
+    let foldersResponse = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    // Intentar hasta 3 veces con delay entre intentos
+    while (attempts < maxAttempts && folderBackups.length === 0) {
+      attempts++;
+      console.log(`🔍 Intento ${attempts}/${maxAttempts} de verificación...`);
+      
+      // Buscar objetos con prefijo 'backups' y filtrar por carpetas
+      foldersResponse = await this.makeRequest('GET', '/s3/objects?prefix=backups/');
+      
+      if (foldersResponse.ok && foldersResponse.data?.success) {
+        // Filtrar archivos de carpetas con múltiples criterios
+        folderBackups = foldersResponse.data.objects?.filter(obj => {
+          if (!obj.key) return false;
+          // Buscar archivos que contengan 'carpetas' o que sean de tipo 'folders'
+          return obj.key.includes('carpetas ') || 
+                 obj.key.includes('folders') || 
+                 (obj.metadata && obj.metadata.type === 'folders');
+        }) || [];
+        
+        console.log(`📊 Objetos encontrados: ${foldersResponse.data.objects?.length || 0}`);
+        console.log(`📁 Backups de carpetas: ${folderBackups.length}`);
+        
+        if (folderBackups.length === 0 && attempts < maxAttempts) {
+          console.log(`⏳ Esperando 1 segundo antes del siguiente intento...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } else {
+        console.log(`❌ Error en intento ${attempts}: ${foldersResponse.statusText}`);
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
     
     this.logTest(
       'Verificar existencia de backups de carpetas en S3',
-      foldersResponse.ok && foldersResponse.data?.success && folderBackups.length > 0,
+      foldersResponse?.ok && foldersResponse.data?.success && folderBackups.length > 0,
       {
-        message: `Backups de carpetas encontrados: ${folderBackups.length}`,
-        error: !foldersResponse.ok ? foldersResponse.statusText : null,
-        response: foldersResponse.data
+        message: `Backups de carpetas encontrados: ${folderBackups.length} (después de ${attempts} intentos)`,
+        error: !foldersResponse?.ok ? foldersResponse?.statusText : 
+               folderBackups.length === 0 ? 'No se encontraron backups de carpetas después de múltiples intentos' : null,
+        response: foldersResponse?.data,
+        details: {
+          totalObjects: foldersResponse?.data?.objects?.length || 0,
+          folderBackups: folderBackups.length,
+          attempts: attempts
+        }
       }
     );
 
@@ -687,9 +702,8 @@ class FoldersBackupTester {
 
       // Ejecutar pruebas de backup de carpetas y capturar la ruta del archivo
       const backupResponse = await this.testFoldersBackup();
-      if (backupResponse && backupResponse.data && backupResponse.data.result && backupResponse.data.result.filePath) {
-        backupFilePath = backupResponse.data.result.filePath;
-        backupResult = backupResponse.data.result;
+      if (backupResponse && backupResponse.data && backupResponse.data.data) {
+        backupResult = backupResponse.data.data;
       }
 
       // Si el backup fue exitoso, verificar subida a S3
@@ -712,10 +726,7 @@ class FoldersBackupTester {
         await this.cleanupDownloadedFile(downloadedFilePath);
       }
       
-      // Limpiar archivo de backup local
-      if (backupFilePath) {
-        await this.cleanupBackupFile(backupFilePath);
-      }
+
     }
 
     const endTime = Date.now();

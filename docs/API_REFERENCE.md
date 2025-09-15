@@ -11,24 +11,27 @@
 ### Backup Manual de Carpetas
 ```http
 POST /api/backup/folders
-Content-Type: application/json
 api-token: tu-token
-
-{
-  "folders": [
-    "C:\\ruta\\carpeta1",
-    "C:\\ruta\\carpeta2"
-  ]
-}
 ```
+
+**Descripción:** Ejecuta un backup de las carpetas configuradas en `config/config.json`. No requiere parámetros en el cuerpo de la petición.
 
 **Respuesta:**
 ```json
 {
   "success": true,
-  "message": "Backup de carpetas iniciado",
-  "jobId": "backup-folders-1642678800",
-  "folders": ["C:\\ruta\\carpeta1", "C:\\ruta\\carpeta2"]
+  "message": "Backup de carpetas completado exitosamente",
+  "data": {
+    "jobId": "backup-folders-1642678800",
+    "type": "folders",
+    "success": true,
+    "startTime": "2024-01-20T10:30:00.000Z",
+    "endTime": "2024-01-20T10:35:00.000Z",
+    "duration": 300000,
+    "filesProcessed": 150,
+    "totalSize": "2.5 MB",
+    "s3Key": "backups/folders/backup-folders-1642678800.zip"
+  }
 }
 ```
 
@@ -38,13 +41,14 @@ POST /api/backup/database
 api-token: tu-token
 ```
 
+**Descripción:** Ejecuta un backup de la base de datos usando la configuración del archivo `.env`. No requiere parámetros en el cuerpo de la petición.
+
 **Respuesta:**
 ```json
 {
   "success": true,
   "message": "Backup de base de datos completado exitosamente",
-  "jobId": "backup-db-1642678800",
-  "result": {
+  "data": {
     "jobId": "backup-db-1642678800",
     "type": "database",
     "success": true,
@@ -652,11 +656,9 @@ api-token: tu-token
 # 1. Verificar estado
 curl -H "api-token: tu-token" http://localhost:3000/api/backup/status
 
-# 2. Backup de carpetas
+# 2. Backup de carpetas (sin parámetros, usa config.json)
 curl -X POST \
-  -H "Content-Type: application/json" \
   -H "api-token: tu-token" \
-  -d '{"folders": ["C:\\Documentos"]}' \
   http://localhost:3000/api/backup/folders
 
 # 3. Backup de base de datos
