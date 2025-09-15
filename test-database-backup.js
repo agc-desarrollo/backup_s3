@@ -148,12 +148,12 @@ class DatabaseBackupTester {
       }
     );
 
-    // 2. Intentar backup manual de base de datos
-    console.log('\n🚀 Iniciando backup manual de base de datos...');
-    const backupResponse = await this.makeRequest('POST', '/backup/now', { type: 'database' });
+    // 2. Probar backup de base de datos
+    console.log('\n🚀 Probando backup de base de datos...');
+    const backupResponse = await this.makeRequest('POST', '/backup/database');
 
     this.logTest(
-      'Ejecutar backup manual de base de datos',
+      'Ejecutar backup de base de datos',
       backupResponse.ok && backupResponse.data?.success,
       {
         message: `Status: ${backupResponse.status}, Message: ${backupResponse.data?.message || 'Sin mensaje'}`,
@@ -208,7 +208,7 @@ class DatabaseBackupTester {
       }
     }
 
-    // 5. Verificar historial de backups
+    // 4. Verificar historial de backups
     const historyResponse = await this.makeRequest('GET', '/backup/history?page=1&limit=5');
     this.logTest(
       'Verificar historial de backups',
@@ -219,7 +219,7 @@ class DatabaseBackupTester {
       }
     );
 
-    // 6. Verificar estadísticas de backup
+    // 5. Verificar estadísticas de backup
     const statsResponse = await this.makeRequest('GET', '/backup/stats');
     this.logTest(
       'Verificar estadísticas de backup',

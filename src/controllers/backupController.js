@@ -11,6 +11,71 @@ const backupSchema = Joi.object({
   type: Joi.string().valid('full', 'folders', 'database').required()
 });
 
+// POST /api/backup/database - Ejecutar backup de base de datos
+router.post('/database', async (req, res) => {
+  try {
+    const userInfo = 'API usuario';
+
+    // Verificar si ya hay un backup en ejecución
+    if (backupService.isBackupRunning()) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya hay un backup en ejecución',
+        currentJob: backupService.getCurrentJobStatus()
+      });
+    }
+
+    backupLogger.info(`Backup de base de datos iniciado por: ${userInfo}`, {
+      type: 'database',
+      ip: req.ip
+    });
+
+    // Ejecutar backup de base de datos directamente
+    try {
+      const result = await backupService.runDatabaseBackup();
+      
+      if (result.success) {
+        backupLogger.info(`Backup de base de datos completado exitosamente por: ${userInfo}`);
+        
+        // Responder con el resultado del backup completado
+        res.json({
+          success: true,
+          message: 'Backup de base de datos completado exitosamente',
+          jobId: result.jobId,
+          result: result
+        });
+      } else {
+        backupLogger.error(`Backup de base de datos falló para: ${userInfo}`, {
+          errors: result.errors || 'Error desconocido'
+        });
+        
+        // Responder con el error del backup
+        res.status(500).json({
+          success: false,
+          message: 'Backup de base de datos falló',
+          errors: result.errors || 'Error desconocido'
+        });
+      }
+    } catch (backupError) {
+      backupLogger.error(`Error en backup de base de datos para: ${userInfo}:`, backupError);
+      
+      // Responder con error de ejecución
+      res.status(500).json({
+        success: false,
+        message: 'Error al ejecutar backup de base de datos',
+        error: backupError.message
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error al iniciar backup de base de datos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+});
+
 // POST /api/backup/now - Ejecutar backup manual
 router.post('/now', async (req, res) => {
   try {

@@ -35,24 +35,37 @@ api-token: tu-token
 ### Backup Manual de Base de Datos
 ```http
 POST /api/backup/database
-Content-Type: application/json
 api-token: tu-token
-
-{
-  "type": "mysql",
-  "database": "mi_base_datos"
-}
 ```
 
 **Respuesta:**
 ```json
 {
   "success": true,
-  "message": "Backup de base de datos iniciado",
+  "message": "Backup de base de datos completado exitosamente",
   "jobId": "backup-db-1642678800",
-  "database": "mi_base_datos"
+  "result": {
+    "jobId": "backup-db-1642678800",
+    "type": "database",
+    "success": true,
+    "databaseBackup": {
+      "success": true,
+      "filePath": "/temp/database-backup.zip",
+      "fileName": "database-backup.zip",
+      "size": 1048576,
+      "database": "mi_base_datos"
+    },
+    "s3Upload": {
+      "success": true,
+      "s3Key": "backups/database/2025-01-15/database-backup.zip",
+      "bucket": "mi-bucket-backup"
+    },
+    "endTime": "2025-01-15T14:30:00.000Z"
+  }
 }
 ```
+
+**Nota:** Este endpoint lee la configuración de la base de datos desde las variables de entorno (.env), por lo que no requiere parámetros en el body.
 
 ### Backup Manual Completo
 ```http
@@ -648,9 +661,7 @@ curl -X POST \
 
 # 3. Backup de base de datos
 curl -X POST \
-  -H "Content-Type: application/json" \
   -H "api-token: tu-token" \
-  -d '{"type": "mysql", "database": "mi_bd"}' \
   http://localhost:3000/api/backup/database
 
 # 4. Verificar resultados

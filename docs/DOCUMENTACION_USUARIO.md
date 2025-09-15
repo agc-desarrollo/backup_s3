@@ -130,13 +130,31 @@ api-token: tu-token-configurado
 
 **Ejecutar Backup Manual**
 ```bash
-POST /api/backup/now
-Content-Type: application/json
-api-token: tu-token
+# Backup completo (carpetas + base de datos)
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "api-token: tu-token" \
+  -d '{"type": "full"}' \
+  http://localhost:3000/api/backup/now
 
-{
-  "type": "full"    // Opciones: "full", "folders", "database"
-}
+# Backup solo de carpetas
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "api-token: tu-token" \
+  -d '{"type": "folders"}' \
+  http://localhost:3000/api/backup/now
+
+# Backup solo de base de datos (usando endpoint específico)
+ curl -X POST \
+   -H "api-token: tu-token" \
+   http://localhost:3000/api/backup/database
+ 
+ # Backup solo de base de datos (usando endpoint general)
+ curl -X POST \
+   -H "Content-Type: application/json" \
+   -H "api-token: tu-token" \
+   -d '{"type": "database"}' \
+   http://localhost:3000/api/backup/now
 ```
 
 **Obtener Estado del Backup**
