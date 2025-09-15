@@ -71,26 +71,7 @@ api-token: tu-token
 
 **Nota:** Este endpoint lee la configuración de la base de datos desde las variables de entorno (.env), por lo que no requiere parámetros en el body.
 
-### Backup Manual Completo
-```http
-POST /api/backup/now
-Content-Type: application/json
-api-token: tu-token
 
-{
-  "type": "full"
-}
-```
-
-**Respuesta:**
-```json
-{
-  "success": true,
-  "message": "Backup completo iniciado",
-  "jobId": "backup-full-1642678800",
-  "type": "full"
-}
-```
 
 ### Estado del Backup
 ```http

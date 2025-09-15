@@ -18,8 +18,8 @@ La configuración se encuentra en:
 ## Uso
 ```bash
 # Backup manual de carpetas
-POST /api/backup/now
-{
-  "type": "folders"
-}
+POST /api/backup/folders
+
+# Backup manual de base de datos
+POST /api/backup/database
 ```

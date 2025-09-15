@@ -6,10 +6,7 @@ import { s3Service } from '../services/s3Service.js';
 
 const router = express.Router();
 
-// Esquema de validación para backup manual
-const backupSchema = Joi.object({
-  type: Joi.string().valid('full', 'folders', 'database').required()
-});
+
 
 // POST /api/backup/database - Ejecutar backup de base de datos
 router.post('/database', async (req, res) => {
@@ -129,96 +126,7 @@ router.post('/folders', async (req, res) => {
   }
 });
 
-// POST /api/backup/now - Ejecutar backup manual
-router.post('/now', async (req, res) => {
-  try {
-    // Validar datos de entrada
-    const { error, value } = backupSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tipo de backup inválido',
-        errors: error.details.map(detail => detail.message)
-      });
-    }
 
-    const { type } = value;
-    const userInfo = 'API usuario';
-
-    // Verificar si ya hay un backup en ejecución
-    if (backupService.isBackupRunning()) {
-      return res.status(409).json({
-        success: false,
-        message: 'Ya hay un backup en ejecución',
-        currentJob: backupService.getCurrentJobStatus()
-      });
-    }
-
-    backupLogger.info(`Backup manual iniciado por: ${userInfo}`, {
-      type,
-      ip: req.ip
-    });
-
-    // Ejecutar backup manual directamente
-    try {
-      let result;
-      
-      if (type === 'database') {
-        result = await backupService.runDatabaseBackup();
-      } else if (type === 'folders') {
-        result = await backupService.runFoldersBackup();
-      } else if (type === 'full') {
-        const dbResult = await backupService.backupDatabase();
-        const foldersResult = await backupService.backupFolders();
-        result = {
-          success: dbResult.success && foldersResult.success,
-          database: dbResult,
-          folders: foldersResult
-        };
-      }
-      
-      if (result.success) {
-        backupLogger.info(`Backup manual ${type} completado exitosamente por: ${userInfo}`, {
-          type: type
-        });
-        
-        // Responder con el resultado del backup completado
-        res.json({
-          success: true,
-          message: `Backup ${type} completado exitosamente`,
-          result: result
-        });
-      } else {
-        backupLogger.error(`Backup manual ${type} falló para: ${userInfo}`, {
-          errors: result.errors || 'Error desconocido'
-        });
-        
-        // Responder con el error del backup
-        res.status(500).json({
-          success: false,
-          message: `Backup ${type} falló`,
-          errors: result.errors || 'Error desconocido'
-        });
-      }
-    } catch (backupError) {
-      backupLogger.error(`Error en backup manual ${type} para: ${userInfo}:`, backupError);
-      
-      // Responder con error de ejecución
-      res.status(500).json({
-        success: false,
-        message: `Error al ejecutar backup ${type}`,
-        error: backupError.message
-      });
-    }
-
-  } catch (error) {
-    logger.error('Error al iniciar backup manual:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor'
-    });
-  }
-});
 
 // GET /api/backup/status - Obtener estado del backup actual
 router.get('/status', (req, res) => {
