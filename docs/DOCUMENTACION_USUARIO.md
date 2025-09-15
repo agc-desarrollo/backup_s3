@@ -128,26 +128,14 @@ api-token: tu-token-configurado
 
 #### 1. Gestión de Backups
 
-**Ejecutar Backup Manual de Carpetas**
+**Ejecutar Backup Manual**
 ```bash
-POST /api/backup/folders
+POST /api/backup/now
 Content-Type: application/json
 api-token: tu-token
 
 {
-  "folders": ["/ruta/carpeta1", "/ruta/carpeta2"]
-}
-```
-
-**Ejecutar Backup Manual de Base de Datos**
-```bash
-POST /api/backup/database
-Content-Type: application/json
-api-token: tu-token
-
-{
-  "type": "mysql",
-  "database": "nombre_bd"
+  "type": "full"    // Opciones: "full", "folders", "database"
 }
 ```
 
@@ -155,6 +143,35 @@ api-token: tu-token
 ```bash
 GET /api/backup/status
 api-token: tu-token
+```
+
+**Obtener Estadísticas de Backups**
+```bash
+GET /api/backup/stats
+api-token: tu-token
+```
+
+**Obtener Historial de Backups**
+```bash
+GET /api/backup/history?page=1&limit=20
+api-token: tu-token
+```
+
+**Eliminar Backup Específico**
+```bash
+DELETE /api/backup/{backup-key}
+api-token: tu-token
+```
+
+**Limpiar Backups Antiguos**
+```bash
+POST /api/backup/cleanup
+Content-Type: application/json
+api-token: tu-token
+
+{
+  "daysToKeep": 30
+}
 ```
 
 #### 2. Visualización de Contenidos S3
@@ -189,6 +206,12 @@ GET /api/s3/objects/{key}/details
 api-token: tu-token
 ```
 
+**Descargar Archivo de S3**
+```bash
+GET /api/s3/objects/{key}/download
+api-token: tu-token
+```
+
 #### 3. Gestión de Configuración
 
 **Obtener Configuración Actual**
@@ -218,8 +241,57 @@ api-token: tu-token
 
 **Obtener Logs del Sistema**
 ```bash
-GET /api/logs?page=1&limit=50&level=info
+GET /api/logs?page=1&limit=50&level=info&startDate=2025-01-15&endDate=2025-01-16
 api-token: tu-token
+```
+
+**Obtener Estadísticas de Logs**
+```bash
+GET /api/logs/stats
+api-token: tu-token
+```
+
+**Obtener Logs Recientes**
+```bash
+GET /api/logs/recent?limit=10
+api-token: tu-token
+```
+
+**Obtener Logs de Backup**
+```bash
+GET /api/logs/backup?limit=20
+api-token: tu-token
+```
+
+**Obtener Logs de Errores**
+```bash
+GET /api/logs/errors?limit=20
+api-token: tu-token
+```
+
+**Buscar en Logs**
+```bash
+GET /api/logs/search?q=backup&limit=20
+api-token: tu-token
+```
+
+**Exportar Logs**
+```bash
+GET /api/logs/export?format=csv&startDate=2025-01-15&endDate=2025-01-16
+api-token: tu-token
+```
+
+#### 5. Información del Sistema
+
+**Obtener Información del Sistema**
+```bash
+GET /api/config/system-info
+api-token: tu-token
+```
+
+**Verificar Estado del Servicio**
+```bash
+GET /api/health
 ```
 
 ## Ejemplos de Uso Prácticos

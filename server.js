@@ -14,6 +14,7 @@ import { databaseService } from './src/services/databaseService.js';
 import { backupService } from './src/services/backupService.js';
 import { s3Service } from './src/services/s3Service.js';
 import { backupController } from './src/controllers/backupController.js';
+import { configController } from './src/controllers/configController.js';
 import { logsController } from './src/controllers/logsController.js';
 import { s3Controller } from './src/controllers/s3Controller.js';
 import { authMiddleware } from './src/middleware/authMiddleware.js';
@@ -74,6 +75,7 @@ app.use((req, res, next) => {
 
 // Rutas de API únicamente
 app.use('/api/backup', authMiddleware, backupController);
+app.use('/api/config', authMiddleware, configController);
 app.use('/api/logs', authMiddleware, logsController);
 app.use('/api/s3', authMiddleware, s3Controller);
 

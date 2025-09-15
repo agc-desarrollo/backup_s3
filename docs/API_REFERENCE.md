@@ -54,6 +54,27 @@ api-token: tu-token
 }
 ```
 
+### Backup Manual Completo
+```http
+POST /api/backup/now
+Content-Type: application/json
+api-token: tu-token
+
+{
+  "type": "full"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Backup completo iniciado",
+  "jobId": "backup-full-1642678800",
+  "type": "full"
+}
+```
+
 ### Estado del Backup
 ```http
 GET /api/backup/status
@@ -71,6 +92,87 @@ api-token: tu-token
     "type": "folders",
     "status": "completed"
   }
+}
+```
+
+### Estadísticas de Backup
+```http
+GET /api/backup/stats
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "stats": {
+    "totalBackups": 45,
+    "lastBackup": "2025-01-15T10:30:00.000Z",
+    "totalSize": "2.5 GB",
+    "avgBackupTime": 120000
+  }
+}
+```
+
+### Historial de Backups
+```http
+GET /api/backup/history?page=1&limit=20
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "backups": [
+    {
+      "key": "backups/folders/2025-01-15/carpetas-10-30.zip",
+      "timestamp": "2025-01-15T10:30:00.000Z",
+      "type": "folders",
+      "size": "150 MB"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 45
+  }
+}
+```
+
+### Eliminar Backup
+```http
+DELETE /api/backup/:key
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Backup eliminado exitosamente",
+  "key": "backups/folders/2025-01-15/carpetas-10-30.zip"
+}
+```
+
+### Limpiar Backups Antiguos
+```http
+POST /api/backup/cleanup
+Content-Type: application/json
+api-token: tu-token
+
+{
+  "daysToKeep": 30
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Limpieza completada",
+  "deletedCount": 5,
+  "freedSpace": "500 MB"
 }
 ```
 
@@ -368,6 +470,120 @@ api-token: tu-token
   }
 }
 ```
+
+### Estadísticas de Logs
+```http
+GET /api/logs/stats
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "stats": {
+    "totalLogs": 1250,
+    "byLevel": {
+      "error": 15,
+      "warn": 45,
+      "info": 1100,
+      "debug": 90
+    },
+    "lastEntry": "2025-01-15T14:30:00.000Z"
+  }
+}
+```
+
+### Logs Recientes
+```http
+GET /api/logs/recent?limit=10
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "timestamp": "2025-01-15T14:30:00.000Z",
+      "level": "info",
+      "message": "Backup completado exitosamente"
+    }
+  ]
+}
+```
+
+### Logs de Backup
+```http
+GET /api/logs/backup?limit=20
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "timestamp": "2025-01-15T14:30:00.000Z",
+      "level": "info",
+      "message": "Backup de carpetas iniciado",
+      "jobId": "backup-folders-1642678800"
+    }
+  ]
+}
+```
+
+### Logs de Errores
+```http
+GET /api/logs/errors?limit=20
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "timestamp": "2025-01-15T14:25:00.000Z",
+      "level": "error",
+      "message": "Error conectando a S3",
+      "error": "Connection timeout"
+    }
+  ]
+}
+```
+
+### Buscar en Logs
+```http
+GET /api/logs/search?q=backup&limit=20
+api-token: tu-token
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "timestamp": "2025-01-15T14:30:00.000Z",
+      "level": "info",
+      "message": "Backup de carpetas completado exitosamente"
+    }
+  ],
+  "total": 45
+}
+```
+
+### Exportar Logs
+```http
+GET /api/logs/export?format=csv&startDate=2025-01-15&endDate=2025-01-16
+api-token: tu-token
+```
+
+**Respuesta:** Archivo CSV con los logs del período especificado
 
 ## Códigos de Estado HTTP
 

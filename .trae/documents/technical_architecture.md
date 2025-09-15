@@ -45,40 +45,79 @@ graph TD
 
 * **Dependencias principales**:
 
-  * winston (logging)
-
-
-
-  * aws-sdk o @aws-sdk/client-s3 (S3)
-
+  * winston (logging avanzado con rotación de archivos)
+  * @aws-sdk/client-s3 (cliente S3 moderno)
   * pg (PostgreSQL)
-
   * mysql2 (MySQL)
+  * archiver (compresión ZIP para backups de carpetas)
+  * express-rate-limit (limitación de velocidad)
+  * helmet (headers de seguridad HTTP)
+  * joi (validación de esquemas)
+  * express (framework web)
+  * dotenv (gestión de variables de entorno)
+  * cors (Cross-Origin Resource Sharing)
 
-  * archiver (compresión ZIP)
+## 2.1 Middleware de Seguridad Implementado
 
-  * express-rate-limit (seguridad)
-
-  * helmet (headers de seguridad)
+* **authMiddleware.js**: Validación de token API y logging de actividad
+* **securityMiddleware.js**: Múltiples capas de seguridad:
+  - Sanitización de rutas (prevención de directory traversal)
+  - Validación de tamaño de payload
+  - Validación de content-type
+  - Sanitización de entrada
+  - Detección de inyección SQL
+  - Headers de seguridad adicionales
 
 ## 3. Definiciones de Rutas
+
+### 3.1 Endpoints de Backup
+
+| Ruta                    | Método | Propósito                                    |
+| ----------------------- | ------ | -------------------------------------------- |
+| /api/backup/now         | POST   | Ejecutar backup manual (completo/carpetas/BD) |
+| /api/backup/status      | GET    | Obtener estado actual del backup           |
+| /api/backup/stats       | GET    | Obtener estadísticas de backups            |
+| /api/backup/history     | GET    | Obtener historial de backups               |
+| /api/backup/:key        | DELETE | Eliminar backup específico de S3           |
+| /api/backup/cleanup     | POST   | Limpiar backups antiguos                   |
+
+### 3.2 Endpoints de Configuración
 
 | Ruta                    | Método | Propósito                                    |
 | ----------------------- | ------ | -------------------------------------------- |
 | /api/config             | GET    | Obtener configuración actual del sistema    |
 | /api/config             | POST   | Actualizar configuración del sistema        |
-| /api/backup/now         | POST   | Ejecutar backup manual                      |
-| /api/backup/status      | GET    | Obtener estado actual del backup           |
-| /api/backup/stats       | GET    | Obtener estadísticas de backups            |
-| /api/backup/history     | GET    | Obtener historial de backups               |
-| /api/logs               | GET    | Obtener logs del sistema                    |
+| /api/config/backup-tools| GET    | Obtener herramientas de backup disponibles  |
+| /api/config/system-info | GET    | Obtener información del sistema             |
+
+### 3.3 Endpoints de Logs
+
+| Ruta                    | Método | Propósito                                    |
+| ----------------------- | ------ | -------------------------------------------- |
+| /api/logs               | GET    | Obtener logs del sistema con filtros        |
 | /api/logs/stats         | GET    | Obtener estadísticas de logs               |
 | /api/logs/recent        | GET    | Obtener logs recientes                      |
-| /api/logs/export        | GET    | Exportar logs en formato específico        |
-| /api/s3/objects         | GET    | Listar objetos en S3                       |
-| /api/s3/objects/:key    | DELETE | Eliminar objeto específico de S3           |
-| /api/s3/usage           | GET    | Obtener estadísticas de uso de S3          |
-| /api/system/info        | GET    | Obtener información del sistema             |
+| /api/logs/backup        | GET    | Obtener logs específicos de backup         |
+| /api/logs/errors        | GET    | Obtener logs de errores                    |
+| /api/logs/search        | GET    | Buscar en logs por texto                   |
+| /api/logs/export        | GET    | Exportar logs en formato CSV              |
+
+### 3.4 Endpoints de S3
+
+| Ruta                         | Método | Propósito                                    |
+| ---------------------------- | ------ | -------------------------------------------- |
+| /api/s3/objects              | GET    | Listar objetos en S3 con paginación        |
+| /api/s3/objects/:key/download| GET    | Descargar objeto específico de S3          |
+| /api/s3/objects/:key/details | GET    | Obtener detalles de objeto específico      |
+| /api/s3/folders              | GET    | Listar carpetas/prefijos en S3             |
+| /api/s3/stats                | GET    | Obtener estadísticas de uso de S3          |
+| /api/s3/search               | GET    | Buscar objetos en S3 por nombre            |
+
+### 3.5 Endpoints de Salud
+
+| Ruta                    | Método | Propósito                                    |
+| ----------------------- | ------ | -------------------------------------------- |
+| /api/health             | GET    | Verificar estado del servicio               |
 
 ## 4. Definiciones de API
 
@@ -145,6 +184,50 @@ Query Parameters:
 | page                 | number             | false        | Número de página (default: 1)    |
 | limit                | number             | false        | Límite por página (default: 50)  |
 | level                | string             | false        | Nivel de log (info, warn, error) |
+
+## 4.2 Estructura de Servicios
+
+### 4.2.1 backupService.js
+
+**Funciones principales:**
+- `runFoldersBackup()`: Ejecuta backup de carpetas configuradas
+- `runDatabaseBackup()`: Ejecuta backup de base de datos
+- `backupFolders()`: Comprime carpetas en ZIP y sube a S3
+- `getBackupStatus()`: Obtiene estado actual de backups
+- `getBackupStats()`: Calcula estadísticas de backups
+- `getBackupHistory()`: Recupera historial desde S3
+- `deleteBackup()`: Elimina backup específico
+- `cleanupOldBackups()`: Limpia backups antiguos
+
+### 4.2.2 configService.js
+
+**Funciones principales:**
+- `getConfig()`: Obtiene configuración actual
+- `updateConfig()`: Actualiza configuración de carpetas
+- `getBackupTools()`: Lista herramientas de backup disponibles
+- `getSystemInfo()`: Información del sistema y recursos
+
+### 4.2.3 logsService.js
+
+**Funciones principales:**
+- `getLogs()`: Obtiene logs con filtros y paginación
+- `getLogStats()`: Estadísticas de logs por nivel
+- `getRecentLogs()`: Logs más recientes
+- `getBackupLogs()`: Logs específicos de backup
+- `getErrorLogs()`: Logs de errores únicamente
+- `searchLogs()`: Búsqueda de texto en logs
+- `exportLogs()`: Exportación en formato CSV
+
+### 4.2.4 s3Service.js
+
+**Funciones principales:**
+- `listObjects()`: Lista objetos con paginación
+- `downloadObject()`: Descarga objeto específico
+- `getObjectDetails()`: Detalles de objeto
+- `listFolders()`: Lista prefijos/carpetas
+- `getS3Stats()`: Estadísticas de uso
+- `searchObjects()`: Búsqueda de objetos
+- `deleteObject()`: Eliminación de objetos
 
 **Backup manual**
 
