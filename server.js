@@ -53,7 +53,7 @@ app.use(validateSecurityHeaders);
 app.use(validatePayloadSize());
 app.use(validateContentType());
 
-// Middleware de parsing
+// Middleware de parsing JSON y URL-encoded
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
