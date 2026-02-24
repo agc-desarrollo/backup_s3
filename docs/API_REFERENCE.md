@@ -445,6 +445,82 @@ Verificación del estado del servicio. No requiere autenticación.
 
 ---
 
+## Scheduler
+
+### GET /api/scheduler/status
+Estado actual del scheduler. No requiere autenticación.
+
+```json
+{
+  "success": true,
+  "data": {
+    "isRunning": true,
+    "activeJobs": ["weekday-folder-backup", "database-backup-mwf"],
+    "jobsConfigured": 2,
+    "lastRun": {
+      "weekday-folder-backup": {
+        "startTime": "2026-02-24T23:00:00.000Z",
+        "endTime": "2026-02-24T23:05:00.000Z",
+        "success": true,
+        "type": "folder"
+      }
+    }
+  }
+}
+```
+
+### GET /api/scheduler/jobs
+Lista de jobs configurados. No requiere autenticación.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "weekday-folder-backup",
+      "description": "Backup folders Monday-Friday at 11 PM",
+      "type": "folder",
+      "days": [1, 2, 3, 4, 5],
+      "time": "23:00",
+      "enabled": true,
+      "hasRotation": true,
+      "rotation": {
+        "keepLast": 10,
+        "keepWeeks": 3,
+        "keepMonths": 2
+      }
+    }
+  ]
+}
+```
+
+### POST /api/scheduler/run/:jobName
+Ejecuta un job manualmente. No requiere autenticación.
+
+```http
+POST /api/scheduler/run/weekday-folder-backup
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Job weekday-folder-backup ejecutado"
+}
+```
+
+### POST /api/scheduler/reload
+Recarga la configuración del scheduler. No requiere autenticación.
+
+```json
+{
+  "success": true,
+  "message": "Scheduler recargado"
+}
+```
+
+---
+
 ## Ejemplos cURL
 
 ```bash

@@ -79,7 +79,52 @@ Editar `config/config.json`:
 - Windows: doble barra invertida `\\`
 - Linux/Mac: barra normal `/`
 
-### 5. Ejecutar
+### 5. Configurar scheduler (opcional)
+
+Para habilitar backups automáticos, crea `config/schedule.json` basado en el ejemplo:
+
+```bash
+copy config\schedule.example.json config\schedule.json
+```
+
+Edita `config/schedule.json` con tus jobs programados:
+
+```json
+{
+  "jobs": [
+    {
+      "name": "weekday-folder-backup",
+      "type": "folder",
+      "days": [1, 2, 3, 4, 5],
+      "time": "23:00",
+      "enabled": true,
+      "rotation": {
+        "keepLast": 10,
+        "keepWeeks": 3,
+        "keepMonths": 2
+      }
+    }
+  ]
+}
+```
+
+**Parámetros de job:**
+- `name`: Identificador único del job
+- `type`: `"folder"` o `"database"`
+- `days`: Array de días (0=Domingo, 1=Lunes, ..., 6=Sábado)
+- `time`: Hora en formato HH:MM (24 horas)
+- `enabled`: true/false para habilitar/deshabilitar
+- `rotation`: Política de retención (opcional)
+
+**Variables de entorno requeridas:**
+```env
+API_TOKEN=tu-token-de-api
+ENABLE_SCHEDULER=true
+```
+
+> El scheduler usa el mismo `API_TOKEN` configurado en el archivo `.env` para autenticar las llamadas a la API interna.
+
+### 6. Ejecutar
 
 ```bash
 npm start       # Producción
@@ -88,7 +133,7 @@ npm run dev     # Desarrollo (auto-reload con --watch)
 
 Servidor disponible en: `http://localhost:3000`
 
-### 6. Verificar instalación
+### 7. Verificar instalación
 
 ```bash
 # Estado del servicio
@@ -99,6 +144,10 @@ curl -H "api-token: tu-token" http://localhost:3000/api/config
 
 # Verificar herramientas de BD
 curl -H "api-token: tu-token" http://localhost:3000/api/config/backup-tools
+
+# Verificar scheduler (si está habilitado)
+curl http://localhost:3000/api/scheduler/status
+curl http://localhost:3000/api/scheduler/jobs
 ```
 
 ## Pruebas

@@ -13,6 +13,7 @@ import { configService } from './src/services/configService.js';
 import { databaseService } from './src/services/databaseService.js';
 import { backupService } from './src/services/backupService.js';
 import { s3Service } from './src/services/s3Service.js';
+import { schedulerService } from './src/services/schedulerService.js';
 import { backupController } from './src/controllers/backupController.js';
 import { configController } from './src/controllers/configController.js';
 import { logsController } from './src/controllers/logsController.js';
@@ -79,6 +80,34 @@ app.use('/api/config', authMiddleware, configController);
 app.use('/api/logs', authMiddleware, logsController);
 app.use('/api/s3', authMiddleware, s3Controller);
 
+// Scheduler endpoints (no auth required - runs locally)
+app.get('/api/scheduler/status', (req, res) => {
+  res.json({ success: true, data: schedulerService.getStatus() });
+});
+
+app.get('/api/scheduler/jobs', (req, res) => {
+  res.json({ success: true, data: schedulerService.getJobs() });
+});
+
+app.post('/api/scheduler/run/:jobName', async (req, res) => {
+  try {
+    const { jobName } = req.params;
+    const result = await schedulerService.runJob(jobName);
+    res.json({ success: true, message: result.message });
+  } catch (error) {
+    res.status(404).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/scheduler/reload', async (req, res) => {
+  try {
+    await schedulerService.reload();
+    res.json({ success: true, message: 'Scheduler recargado' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -100,8 +129,8 @@ app.use((err, req, res, next) => {
 
   res.status(err.status || 500).json({
     success: false,
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Error interno del servidor' 
+    message: process.env.NODE_ENV === 'production'
+      ? 'Error interno del servidor'
       : err.message
   });
 });
@@ -119,15 +148,27 @@ async function startServer() {
   try {
     // Inicializar servicios
     logger.info('Iniciando API de backup S3...');
-    
+
     // Inicializar servicios en orden
     await configService.init();
     await databaseService.init();
     await backupService.init();
     await s3Service.init();
-    
+
     logger.info('Todos los servicios inicializados correctamente');
-    
+
+    // Inicializar scheduler si está habilitado
+    if (process.env.ENABLE_SCHEDULER === 'true') {
+      logger.info('Inicializando scheduler de backups...');
+      const schedulerInitialized = await schedulerService.init();
+      if (schedulerInitialized) {
+        schedulerService.start();
+        logger.info('Scheduler de backups iniciado');
+      }
+    } else {
+      logger.info('Scheduler deshabilitado (establezca ENABLE_SCHEDULER=true para habilitar)');
+    }
+
     // Iniciar servidor
     app.listen(PORT, () => {
       logger.info(`Servidor API iniciado en puerto ${PORT}`);
@@ -138,8 +179,15 @@ async function startServer() {
       console.log(`📋 Logs: GET /api/logs`);
       console.log(`❤️  Health check: GET /api/health`);
       console.log(`🔑 Autenticación: Header 'api-token'`);
+      if (process.env.ENABLE_SCHEDULER === 'true') {
+        console.log(`⏰ Scheduler: HABILITADO`);
+        console.log(`📋 Jobs: GET /api/scheduler/jobs`);
+        console.log(`📊 Estado: GET /api/scheduler/status`);
+      } else {
+        console.log(`⏰ Scheduler: DESHABILITADO (use ENABLE_SCHEDULER=true)`);
+      }
     });
-    
+
   } catch (error) {
     logger.error('Error al iniciar el servidor:', error);
     process.exit(1);
