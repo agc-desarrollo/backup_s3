@@ -1,7 +1,7 @@
 # Referencia de API
 
 **Base URL:** `http://localhost:3000/api`
-**Autenticación:** Header `api-token: tu-token` (requerido en todos los endpoints)
+**Autenticación:** Header `api-token: tu-token` o query string `?api_token=tu-token`
 **Content-Type:** `application/json` (para POST/PUT)
 
 ## Respuesta Estándar
@@ -518,6 +518,75 @@ Recarga la configuración del scheduler. No requiere autenticación.
   "message": "Scheduler recargado"
 }
 ```
+
+### PUT /api/scheduler/jobs
+Crea o actualiza un job del scheduler. **Requiere autenticación.**
+
+**Body:**
+```json
+{
+  "name": "daily-backup",
+  "description": "Daily backup at 10 PM",
+  "type": "folder",
+  "days": [0, 1, 2, 3, 4, 5, 6],
+  "time": "22:00",
+  "enabled": true,
+  "rotation": {
+    "keepLast": 7,
+    "keepWeeks": 4,
+    "keepMonths": 6
+  }
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Job saved",
+  "data": { "message": "Job saved successfully" }
+}
+```
+
+### DELETE /api/scheduler/jobs/:jobName
+Elimina un job del scheduler. **Requiere autenticación.**
+
+```http
+DELETE /api/scheduler/jobs/daily-backup
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Job deleted",
+  "data": { "message": "Job deleted successfully" }
+}
+```
+
+---
+
+## Interfaz de Gestión Web
+
+### GET /manage
+Interfaz web Vue.js para gestionar el scheduler y objetos S3.
+
+**Autenticación:** Token en query string (requerido)
+
+```http
+GET /manage?api_token=tu-token
+```
+
+**Parámetros:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| api_token | string | Sí | Token de API de `.env` |
+
+**Características:**
+- Dashboard con botones de backup manual (Database/Folders)
+- Gestión de jobs del scheduler (crear, editar, eliminar)
+- Navegador de objetos S3 con filtro por prefijo
+- Eliminación y descarga de objetos S3
 
 ---
 

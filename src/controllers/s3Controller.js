@@ -10,17 +10,17 @@ const listObjectsSchema = Joi.object({
   prefix: Joi.string().allow('').default(''),
   maxKeys: Joi.number().integer().min(1).max(1000).default(100),
   continuationToken: Joi.string().allow('').optional()
-});
+}).unknown(true);
 
 const objectDetailsSchema = Joi.object({
   key: Joi.string().required()
-});
+}).unknown(true);
 
 // GET /api/s3/objects/:key/download - Descargar objeto desde S3
 router.get('/objects/:key/download', async (req, res) => {
   try {
     const { key } = req.params;
-    
+
     if (!key) {
       return res.status(400).json({
         success: false,
@@ -30,10 +30,10 @@ router.get('/objects/:key/download', async (req, res) => {
 
     // Decodificar la clave del objeto
     const decodedKey = decodeURIComponent(key);
-    
+
     // Descargar el objeto desde S3
     const s3Object = await s3Service.downloadObject(decodedKey);
-    
+
     if (!s3Object || !s3Object.Body) {
       return res.status(404).json({
         success: false,
@@ -47,17 +47,17 @@ router.get('/objects/:key/download', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${getFileName(decodedKey)}"`);
     // Enviar el stream del objeto
     s3Object.Body.pipe(res);
-    
+
   } catch (error) {
     logger.error('Error al descargar objeto S3:', error);
-    
+
     if (error.name === 'NoSuchKey' || error.message.includes('NoSuchKey')) {
       return res.status(404).json({
         success: false,
         message: 'Objeto no encontrado'
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: 'Error al descargar objeto',
@@ -129,7 +129,7 @@ router.get('/objects', async (req, res) => {
 router.get('/objects/:key/details', async (req, res) => {
   try {
     const key = decodeURIComponent(req.params.key);
-    
+
     // Validar parámetros
     const { error } = objectDetailsSchema.validate({ key });
     if (error) {
@@ -179,14 +179,14 @@ router.get('/objects/:key/details', async (req, res) => {
 
   } catch (error) {
     logger.error('Error al obtener detalles del objeto S3:', error);
-    
+
     if (error.name === 'NoSuchKey' || error.message.includes('NoSuchKey')) {
       return res.status(404).json({
         success: false,
         message: 'Objeto no encontrado'
       });
     }
-    
+
     res.status(500).json({
       success: false,
       message: 'Error al obtener detalles del objeto',
@@ -306,7 +306,7 @@ router.get('/search', async (req, res) => {
 
     // Obtener todos los objetos con el prefijo y filtrar por consulta
     const result = await s3Service.listObjects(prefix, 1000);
-    
+
     // Filtrar objetos que coincidan con la consulta
     const filteredObjects = result.objects
       .filter(obj => obj.Key.toLowerCase().includes(query.toLowerCase()))
@@ -348,7 +348,7 @@ router.get('/search', async (req, res) => {
  */
 function getObjectType(key) {
   const extension = key.split('.').pop()?.toLowerCase();
-  
+
   const typeMap = {
     'zip': 'archive',
     'tar': 'archive',
@@ -360,7 +360,7 @@ function getObjectType(key) {
     'csv': 'data',
     'xml': 'data'
   };
-  
+
   return typeMap[extension] || 'unknown';
 }
 
@@ -387,11 +387,11 @@ function getFileName(key) {
  */
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 

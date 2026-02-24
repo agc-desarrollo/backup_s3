@@ -3,8 +3,8 @@ import { logger } from '../services/logger.js';
 // Middleware de autenticación simplificado con API token
 export function authMiddleware(req, res, next) {
   try {
-    // Obtener el token del header
-    const token = req.headers['api-token'];
+    // Obtener el token del header o query string
+    const token = req.headers['api-token'] || req.query.api_token;
     const expectedToken = process.env.API_TOKEN;
 
     // Verificar que existe el token esperado en las variables de entorno
@@ -28,7 +28,7 @@ export function authMiddleware(req, res, next) {
 
       return res.status(401).json({
         success: false,
-        message: 'Token de autenticación requerido. Incluya el header "api-token".',
+        message: 'Token de autenticación requerido. Use el header "api-token" o el query parameter "api_token".',
         code: 'TOKEN_REQUIRED'
       });
     }
@@ -61,7 +61,7 @@ export function authMiddleware(req, res, next) {
 
   } catch (error) {
     logger.error('Error en middleware de autenticación:', error);
-    
+
     return res.status(500).json({
       success: false,
       message: 'Error interno del servidor',

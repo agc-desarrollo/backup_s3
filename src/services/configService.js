@@ -69,8 +69,13 @@ class ConfigService {
 
   // Obtener configuración de base de datos desde variables de entorno
   getDbConfig() {
+    let dbType = process.env.DB_TYPE || 'postgresql';
+    if (dbType === 'postgres') {
+      dbType = 'postgresql';
+    }
+
     return {
-      type: process.env.DB_TYPE || 'postgresql',
+      type: dbType,
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT) || 5432,
       username: process.env.DB_USERNAME || '',
@@ -84,16 +89,16 @@ class ConfigService {
     try {
       // Validar configuración
       const validatedConfig = this.validateConfig(newConfig);
-      
+
       // Actualizar timestamp
       validatedConfig.updatedAt = new Date().toISOString();
-      
+
       // Guardar en archivo
       await fs.writeFile(CONFIG_PATH, JSON.stringify(validatedConfig, null, 2));
-      
+
       // Actualizar en memoria
       this.config = validatedConfig;
-      
+
       logger.info('Configuración actualizada correctamente');
       return this.config;
     } catch (error) {
@@ -145,11 +150,11 @@ class ConfigService {
     // Por ahora solo validamos que los campos requeridos estén presentes
     const required = ['type', 'host', 'port', 'username', 'database'];
     const missing = required.filter(field => !dbConfig[field]);
-    
+
     if (missing.length > 0) {
       throw new Error(`Campos requeridos faltantes en variables de entorno: ${missing.join(', ')}`);
     }
-    
+
     return true;
   }
 }

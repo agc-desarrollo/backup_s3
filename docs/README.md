@@ -7,6 +7,7 @@ Sistema integral de backup para carpetas locales y bases de datos con almacenami
 - **Backup manual** de carpetas (compresión ZIP) y bases de datos (PostgreSQL, MySQL)
 - **Almacenamiento S3** compatible (AWS S3, Cloudflare R2, MinIO)
 - **API REST completa** para gestión, monitoreo y visualización
+- **Interfaz web** de gestión (Vue.js) para scheduler y objetos S3
 - **Logs avanzados** con rotación, filtros, búsqueda y exportación
 - **Seguridad** mediante token API, rate limiting, sanitización de entrada y helmet
 
@@ -38,6 +39,9 @@ curl -X POST -H "api-token: tu-token" http://localhost:3000/api/backup/database
 
 # Ver estado
 curl -H "api-token: tu-token" http://localhost:3000/api/backup/status
+
+# Interfaz web de gestión
+# Acceder a: http://localhost:3000/manage?api_token=tu-token
 ```
 
 ## Estructura del Proyecto

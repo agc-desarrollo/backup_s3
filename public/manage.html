@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backup S3 - Management Interface</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f5f7fa;
+    }
+
+    .sidebar {
+      min-height: 100vh;
+      background: #1a1f2e;
+    }
+
+    .sidebar .nav-link {
+      color: #a0aec0;
+      border-radius: 8px;
+      margin: 2px 8px;
+    }
+
+    .sidebar .nav-link:hover,
+    .sidebar .nav-link.active {
+      background: #2d3748;
+      color: #fff;
+    }
+
+    .card {
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-primary {
+      background: #4299e1;
+      border: none;
+    }
+
+    .btn-primary:hover {
+      background: #3182ce;
+    }
+
+    .status-dot {
+      height: 10px;
+      width: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-running {
+      background: #48bb78;
+    }
+
+    .status-stopped {
+      background: #f56565;
+    }
+
+    .table {
+      background: white;
+      border-radius: 8px;
+    }
+
+    .object-key {
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <!-- Loading Overlay -->
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner-border text-light" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 d-none d-md-block sidebar py-3">
+          <div class="text-center mb-4">
+            <h5 class="text-white"><i class="bi bi-cloud-download"></i> Backup S3</h5>
+          </div>
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{ active: activeTab === 'dashboard' }"
+                @click.prevent="activeTab = 'dashboard'">
+                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{ active: activeTab === 'scheduler' }"
+                @click.prevent="activeTab = 'scheduler'">
+                <i class="bi bi-clock me-2"></i> Scheduler
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{ active: activeTab === 's3' }" @click.prevent="activeTab = 's3'">
+                <i class="bi bi-cloud me-2"></i> S3 Objects
+              </a>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-4">
+          <!-- Dashboard Tab -->
+          <div v-if="activeTab === 'dashboard'">
+            <h4 class="mb-4">Dashboard</h4>
+
+            <!-- Quick Actions -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <div class="card">
+                  <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="bi bi-lightning-charge"></i> Quick Actions</h5>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-primary" @click="runBackup('database')" :disabled="backupRunning">
+                        <i class="bi bi-database me-2"></i>Database Backup
+                      </button>
+                      <button class="btn btn-success" @click="runBackup('folders')" :disabled="backupRunning">
+                        <i class="bi bi-folder me-2"></i>Folders Backup
+                      </button>
+                    </div>
+                    <div v-if="backupMessage" class="mt-3 alert" :class="backupMessageClass">
+                      {{ backupMessage }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Cards -->
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    <h6 class="text-muted">Scheduler Status</h6>
+                    <h4>
+                      <span class="status-dot"
+                        :class="schedulerStatus.isRunning ? 'status-running' : 'status-stopped'"></span>
+                      {{ schedulerStatus.isRunning ? 'Running' : 'Stopped' }}
+                    </h4>
+                    <small class="text-muted">{{ schedulerStatus.jobsConfigured || 0 }} jobs configured</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    <h6 class="text-muted">S3 Objects</h6>
+                    <h4>{{ s3Stats.totalObjects || 0 }}</h4>
+                    <small class="text-muted">{{ formatBytes(s3Stats.totalSize || 0) }} total</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    <h6 class="text-muted">Last Backup</h6>
+                    <h4>{{ lastBackup || 'Never' }}</h4>
+                    <small class="text-muted">{{ lastBackupType || '' }}</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Jobs -->
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Scheduled Jobs</h5>
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Schedule</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="job in jobs" :key="job.name">
+                        <td>{{ job.name }}</td>
+                        <td><span class="badge" :class="job.type === 'database' ? 'bg-info' : 'bg-warning'">{{ job.type
+                            }}</span></td>
+                        <td>{{ formatSchedule(job) }}</td>
+                        <td><span class="badge" :class="job.enabled ? 'bg-success' : 'bg-secondary'">{{ job.enabled ?
+                            'Enabled' : 'Disabled' }}</span></td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-primary" @click="runJob(job.name)" title="Run now">
+                            <i class="bi bi-play"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="jobs.length === 0">
+                        <td colspan="5" class="text-center text-muted">No jobs configured</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scheduler Tab -->
+          <div v-if="activeTab === 'scheduler'">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <h4>Scheduler Management</h4>
+              <button class="btn btn-primary" @click="showJobModal()">
+                <i class="bi bi-plus-circle me-2"></i>New Job
+              </button>
+            </div>
+
+            <div class="card">
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Type</th>
+                        <th>Schedule</th>
+                        <th>Rotation</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="job in jobs" :key="job.name">
+                        <td><strong>{{ job.name }}</strong></td>
+                        <td>{{ job.description || '-' }}</td>
+                        <td><span class="badge" :class="job.type === 'database' ? 'bg-info' : 'bg-warning'">{{ job.type
+                            }}</span></td>
+                        <td>{{ formatSchedule(job) }}</td>
+                        <td>
+                          <small v-if="job.rotation">
+                            Last: {{ job.rotation.keepLast || '-' }}<br>
+                            Weeks: {{ job.rotation.keepWeeks || '-' }}
+                          </small>
+                        </td>
+                        <td>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="job.enabled"
+                              @change="toggleJob(job)">
+                          </div>
+                        </td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-primary me-1" @click="showJobModal(job)" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                          </button>
+                          <button class="btn btn-sm btn-outline-danger" @click="deleteJob(job.name)" title="Delete">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                          <button class="btn btn-sm btn-outline-success" @click="runJob(job.name)" title="Run now">
+                            <i class="bi bi-play"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="jobs.length === 0">
+                        <td colspan="7" class="text-center text-muted">No jobs configured</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <button class="btn btn-secondary" @click="reloadScheduler">
+                <i class="bi bi-arrow-clockwise me-2"></i>Reload Scheduler
+              </button>
+            </div>
+          </div>
+
+          <!-- S3 Objects Tab -->
+          <div v-if="activeTab === 's3'">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <h4>S3 Objects</h4>
+              <button class="btn btn-outline-secondary" @click="loadS3Objects">
+                <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+              </button>
+            </div>
+
+            <!-- Prefix Filter -->
+            <div class="card mb-3">
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <label class="form-label">Prefix Filter</label>
+                    <div class="input-group">
+                      <input type="text" class="form-control" v-model="s3Prefix" placeholder="e.g., backups/database/">
+                      <button class="btn btn-primary" @click="loadS3Objects">Apply</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Objects Table -->
+            <div class="card">
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Key</th>
+                        <th>Size</th>
+                        <th>Last Modified</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="obj in s3Objects" :key="obj.key">
+                        <td class="object-key">{{ obj.key }}</td>
+                        <td>{{ formatBytes(obj.size) }}</td>
+                        <td>{{ formatDate(obj.lastModified) }}</td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-danger" @click="deleteS3Object(obj.key)" title="Delete">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                          <a class="btn btn-sm btn-outline-primary" :href="getDownloadUrl(obj.key)" title="Download">
+                            <i class="bi bi-download"></i>
+                          </a>
+                        </td>
+                      </tr>
+                      <tr v-if="s3Objects.length === 0">
+                        <td colspan="4" class="text-center text-muted">No objects found</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Pagination -->
+                <div v-if="s3NextToken" class="d-flex justify-content-center mt-3">
+                  <button class="btn btn-outline-primary" @click="loadMoreS3Objects">
+                    Load More
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- Job Modal -->
+    <div class="modal fade" id="jobModal" tabindex="-1" ref="jobModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">{{ editingJob ? 'Edit Job' : 'New Job' }}</h5>
+            <button type="button" class="btn-close" @click="closeJobModal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Job Name</label>
+              <input type="text" class="form-control" v-model="jobForm.name" :disabled="editingJob">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Description</label>
+              <input type="text" class="form-control" v-model="jobForm.description">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Type</label>
+              <select class="form-select" v-model="jobForm.type">
+                <option value="folder">Folder</option>
+                <option value="database">Database</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Time (HH:MM)</label>
+              <input type="time" class="form-control" v-model="jobForm.time">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Days</label>
+              <div class="d-flex gap-2">
+                <div class="form-check" v-for="(day, index) in daysOfWeek" :key="index">
+                  <input class="form-check-input" type="checkbox" :value="index" v-model="jobForm.days">
+                  <label class="form-check-label">{{ day }}</label>
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Rotation - Keep Last</label>
+              <input type="number" class="form-control" v-model.number="jobForm.rotation.keepLast">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Rotation - Keep Weeks</label>
+              <input type="number" class="form-control" v-model.number="jobForm.rotation.keepWeeks">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Rotation - Keep Months</label>
+              <input type="number" class="form-control" v-model.number="jobForm.rotation.keepMonths">
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" v-model="jobForm.enabled">
+              <label class="form-check-label">Enabled</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeJobModal">Cancel</button>
+            <button type="button" class="btn btn-primary" @click="saveJob">{{ editingJob ? 'Update' : 'Create'
+              }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          activeTab: 'dashboard',
+          loading: false,
+          token: '',
+          jobs: [],
+          s3Objects: [],
+          s3NextToken: null,
+          s3Prefix: '',
+          s3Stats: {},
+          schedulerStatus: { running: false, jobsCount: 0 },
+          lastBackup: null,
+          lastBackupType: null,
+          backupRunning: false,
+          backupMessage: '',
+          backupMessageClass: '',
+          editingJob: null,
+          jobModal: null,
+          jobForm: this.getDefaultJobForm(),
+          daysOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        };
+      },
+      mounted() {
+        // Get token from URL query string
+        const urlParams = new URLSearchParams(window.location.search);
+        this.token = urlParams.get('api_token');
+
+        if (!this.token) {
+          alert('No API token provided. Add ?api_token=YOUR_TOKEN to the URL.');
+        }
+
+        // Initialize modal
+        this.jobModal = new bootstrap.Modal(this.$refs.jobModal);
+
+        // Load initial data
+        this.loadSchedulerStatus();
+        this.loadJobs();
+        this.loadS3Stats();
+        this.loadS3Objects();
+      },
+      methods: {
+        // API Helper
+        async apiCall(url, options = {}) {
+          const separator = url.includes('?') ? '&' : '?';
+          const fullUrl = `${url}${separator}api_token=${this.token}`;
+
+          const response = await fetch(fullUrl, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              ...options.headers
+            }
+          });
+
+          return response.json();
+        },
+
+        // Scheduler Methods
+        async loadSchedulerStatus() {
+          const result = await this.apiCall('/api/scheduler/status');
+          if (result.success) {
+            this.schedulerStatus = result.data;
+          }
+        },
+
+        async loadJobs() {
+          const result = await this.apiCall('/api/scheduler/jobs');
+          if (result.success) {
+            this.jobs = result.data || [];
+          }
+        },
+
+        async runJob(jobName) {
+          this.loading = true;
+          try {
+            const result = await this.apiCall(`/api/scheduler/run/${jobName}`, { method: 'POST' });
+            alert(result.message || result.success ? 'Job started' : 'Error');
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async reloadScheduler() {
+          this.loading = true;
+          try {
+            const result = await this.apiCall('/api/scheduler/reload', { method: 'POST' });
+            alert(result.message);
+            this.loadJobs();
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // Backup Methods
+        async runBackup(type) {
+          this.backupRunning = true;
+          this.backupMessage = '';
+          try {
+            const endpoint = type === 'database' ? '/api/backup/database' : '/api/backup/folders';
+            const result = await this.apiCall(endpoint, { method: 'POST' });
+
+            if (result.success) {
+              this.backupMessage = result.message || `${type} backup started successfully`;
+              this.backupMessageClass = 'alert-success';
+              this.lastBackup = new Date().toLocaleString();
+              this.lastBackupType = type.charAt(0).toUpperCase() + type.slice(1);
+            } else {
+              this.backupMessage = result.message || 'Backup failed';
+              this.backupMessageClass = 'alert-danger';
+            }
+          } catch (error) {
+            this.backupMessage = 'Error: ' + error.message;
+            this.backupMessageClass = 'alert-danger';
+          } finally {
+            this.backupRunning = false;
+            setTimeout(() => { this.backupMessage = ''; }, 5000);
+          }
+        },
+
+        // S3 Methods
+        async loadS3Objects() {
+          this.loading = true;
+          this.s3NextToken = null;
+          try {
+            let url = '/api/s3/objects?maxKeys=50';
+            if (this.s3Prefix) {
+              url += `&prefix=${encodeURIComponent(this.s3Prefix)}`;
+            }
+            const result = await this.apiCall(url);
+            if (result.success) {
+              this.s3Objects = result.objects || [];
+              this.s3NextToken = result.nextToken || null;
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async loadS3Stats() {
+          try {
+            const result = await this.apiCall('/api/s3/stats');
+            if (result.success) {
+              this.s3Stats = result.stats || {};
+            }
+          } catch (error) {
+            console.error('Error loading S3 stats:', error);
+          }
+        },
+
+        async loadMoreS3Objects() {
+          if (!this.s3NextToken) return;
+
+          this.loading = true;
+          try {
+            let url = `/api/s3/objects?maxKeys=50&continuationToken=${encodeURIComponent(this.s3NextToken)}`;
+            if (this.s3Prefix) {
+              url += `&prefix=${encodeURIComponent(this.s3Prefix)}`;
+            }
+            const result = await this.apiCall(url);
+            if (result.success) {
+              this.s3Objects = [...this.s3Objects, ...(result.objects || [])];
+              this.s3NextToken = result.nextToken || null;
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async deleteS3Object(key) {
+          if (!confirm(`Delete ${key}?`)) return;
+
+          this.loading = true;
+          try {
+            const result = await this.apiCall(`/api/s3/objects/${encodeURIComponent(key)}`, {
+              method: 'DELETE'
+            });
+            alert(result.message);
+            if (result.success) {
+              this.loadS3Objects();
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        getDownloadUrl(key) {
+          const separator = key.includes('?') ? '&' : '?';
+          return `/api/s3/objects/${encodeURIComponent(key)}/download?api_token=${this.token}`;
+        },
+
+        // Job Modal Methods
+        getDefaultJobForm() {
+          return {
+            name: '',
+            description: '',
+            type: 'folder',
+            time: '23:00',
+            days: [1, 2, 3, 4, 5],
+            rotation: { keepLast: 10, keepWeeks: 3, keepMonths: 2 },
+            enabled: true
+          };
+        },
+
+        showJobModal(job = null) {
+          if (job) {
+            this.editingJob = job.name;
+            this.jobForm = { ...job, rotation: { ...job.rotation } };
+          } else {
+            this.editingJob = null;
+            this.jobForm = this.getDefaultJobForm();
+          }
+          this.jobModal.show();
+        },
+
+        closeJobModal() {
+          this.jobModal.hide();
+        },
+
+        async saveJob() {
+          if (!this.jobForm.name) {
+            alert('Job name is required');
+            return;
+          }
+
+          this.loading = true;
+          try {
+            // Save to config file via API
+            const result = await this.apiCall('/api/scheduler/jobs', {
+              method: 'PUT',
+              body: JSON.stringify(this.jobForm)
+            });
+
+            alert(result.message || 'Job saved');
+            if (result.success) {
+              this.closeJobModal();
+              this.loadJobs();
+              this.reloadScheduler();
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async toggleJob(job) {
+          this.loading = true;
+          try {
+            const result = await this.apiCall('/api/scheduler/jobs', {
+              method: 'PUT',
+              body: JSON.stringify(job)
+            });
+            if (!result.success) {
+              job.enabled = !job.enabled; // Revert on error
+              alert(result.message);
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async deleteJob(jobName) {
+          if (!confirm(`Delete job ${jobName}?`)) return;
+
+          this.loading = true;
+          try {
+            const result = await this.apiCall(`/api/scheduler/jobs/${jobName}`, { method: 'DELETE' });
+            alert(result.message);
+            if (result.success) {
+              this.loadJobs();
+              this.reloadScheduler();
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        // Formatters
+        formatSchedule(job) {
+          if (!job.time) return '-';
+          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const dayList = (job.days || []).map(d => days[d]).join(', ');
+          return `${job.time} - ${dayList}`;
+        },
+
+        formatBytes(bytes) {
+          if (!bytes) return '0 B';
+          const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(1024));
+          return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+        },
+
+        formatDate(dateStr) {
+          if (!dateStr) return '-';
+          return new Date(dateStr).toLocaleString();
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>

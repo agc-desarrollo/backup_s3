@@ -22,16 +22,16 @@ class RotationService {
     try {
       const prefix = this.prefixes[type];
       if (!prefix) {
-        throw new Error(Tipo de backup desconocido: );
+        throw new Error("Tipo de backup desconocido: " + type);
       }
 
-      logger.info(Aplicando política de rotación para  backups);
+      logger.info("Aplicando política de rotación para " + type + " backups");
 
       // Obtener todos los objetos del prefijo
       const objects = await this.listAllObjects(prefix);
       
       if (objects.length === 0) {
-        logger.info(No hay objetos para rotar en );
+        logger.info("No hay objetos para rotar en " + prefix);
         return { deleted: 0, kept: 0 };
       }
 
@@ -44,13 +44,13 @@ class RotationService {
         try {
           await s3Service.deleteObject(obj.key);
           deleted++;
-          logger.info(Eliminado: );
+          logger.info("Eliminado: " + obj.key);
         } catch (error) {
-          logger.error(Error al eliminar :, error.message);
+          logger.error("Error al eliminar: " + error.message);
         }
       }
 
-      logger.info(Rotación completada: eliminados , mantenidos );
+      logger.info("Rotación completada: eliminados " + deleted + ", mantenidos " + (objects.length - deleted));
       return { deleted, kept: objects.length - deleted };
     } catch (error) {
       logger.error('Error en applyRotation:', error);
@@ -155,7 +155,7 @@ class RotationService {
       if (obj.lastModified.getTime() < cutoffTime) return;
       
       // Calcular clave de mes (año-mes)
-      const monthKey = ${obj.lastModified.getFullYear()}-;
+      const monthKey = `${obj.lastModified.getFullYear()}-${String(obj.lastModified.getMonth() + 1).padStart(2, '0')}`;
       
       // Solo mantener el más reciente de cada mes
       if (!monthly.has(monthKey) || obj.lastModified > monthly.get(monthKey).lastModified) {
@@ -173,7 +173,7 @@ class RotationService {
     const startOfYear = new Date(date.getFullYear(), 0, 1);
     const days = Math.floor((date - startOfYear) / (24 * 60 * 60 * 1000));
     const week = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-    return ${date.getFullYear()}-W;
+    return `${date.getFullYear()}-W${String(week).padStart(2, '0')}`;
   }
 
   /**
@@ -183,7 +183,7 @@ class RotationService {
     try {
       const prefix = this.prefixes[type];
       if (!prefix) {
-        throw new Error(Tipo de backup desconocido: );
+        throw new Error("Tipo de backup desconocido: " + type);
       }
 
       const objects = await this.listAllObjects(prefix);
@@ -206,7 +206,7 @@ class RotationService {
         stats.byWeek[weekKey] = (stats.byWeek[weekKey] || 0) + 1;
 
         // Por mes
-        const monthKey = ${obj.lastModified.getFullYear()}-;
+        const monthKey = `${obj.lastModified.getFullYear()}-${String(obj.lastModified.getMonth() + 1).padStart(2, '0')}`;
         stats.byMonth[monthKey] = (stats.byMonth[monthKey] || 0) + 1;
       });
 

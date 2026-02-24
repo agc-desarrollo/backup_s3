@@ -52,7 +52,7 @@ class SchedulerService {
         logger.warn('Variable de entorno API_TOKEN no configurada. Los jobs del scheduler no podrán ejecutarse.');
       }
 
-      logger.info(Scheduler cargado con  jobs);
+      logger.info('Scheduler cargado con jobs');
       return true;
     } catch (error) {
       logger.error('Error al inicializar scheduler:', error);
@@ -74,14 +74,14 @@ class SchedulerService {
 
     for (const jobConfig of this.config.jobs) {
       if (jobConfig.enabled === false) {
-        logger.info(Job  deshabilitado, omitiendo.);
+        logger.info(`Job ${jobConfig.name} deshabilitado, omitiendo.`);
         continue;
       }
 
       this.scheduleJob(jobConfig);
     }
 
-    logger.info(Scheduler iniciado con  jobs activos.);
+    logger.info(`Scheduler iniciado con ${this.jobs.size} jobs activos.`);
   }
 
   /**
@@ -92,7 +92,7 @@ class SchedulerService {
 
     // Validar configuración del job
     if (!days || !time || !type) {
-      logger.error(Job  tiene configuración inválida.);
+      logger.error(`Job ${name} tiene configuración inválida.`);
       return;
     }
 
@@ -112,9 +112,9 @@ class SchedulerService {
 
     if (scheduledJob) {
       this.jobs.set(name, scheduledJob);
-      logger.info(Job '' programado: backup, días  a las);
+      logger.info(`Job '${name}' programado: ${type} backup, días ${days} a las ${time}`);
     } else {
-      logger.error(Error al programar job '');
+      logger.error(`Error al programar job '${name}'`);
     }
   }
 
@@ -125,7 +125,7 @@ class SchedulerService {
     const { name, type, rotation } = jobConfig;
     const startTime = new Date();
 
-    logger.info(=== Iniciando job: () ===);
+    logger.info(`=== Iniciando job: ${name} ===`);
 
     try {
       // Determinar endpoint según el tipo
@@ -145,17 +145,17 @@ class SchedulerService {
       });
 
       if (!response.ok) {
-        throw new Error(API responded with status);
+        throw new Error(`API responded with status ${response.status}`);
       }
 
       const result = await response.json();
-      logger.info(Backup  completado:, result);
+      logger.info(`Backup ${type} completado:`, result);
 
       // Aplicar rotación si está configurada
       if (rotation) {
-        logger.info(Aplicando política de rotación para ...);
+        logger.info(`Aplicando política de rotación para ${type}...`);
         const rotationResult = await rotationService.applyRotation(type, rotation);
-        logger.info(Rotación completada:, rotationResult);
+        logger.info('Rotación completada:', rotationResult);
       }
 
       // Registrar tiempo de ejecución
@@ -166,9 +166,9 @@ class SchedulerService {
         type
       });
 
-      logger.info(=== Job  completado exitosamente ===);
+      logger.info(`=== Job ${name} completado exitosamente ===`);
     } catch (error) {
-      logger.error(Error en job :, error.message);
+      logger.error(`Error en job ${name}:`, error.message);
 
       this.lastRun.set(name, {
         startTime,
@@ -188,7 +188,7 @@ class SchedulerService {
 
     for (const [name, job] of this.jobs) {
       job.cancel();
-      logger.info(Job  cancelado);
+      logger.info(`Job ${name} cancelado`);
     }
 
     this.jobs.clear();
@@ -235,12 +235,12 @@ class SchedulerService {
     const jobConfig = this.config?.jobs?.find(j => j.name === jobName);
 
     if (!jobConfig) {
-      throw new Error(Job '' no encontrado);
+      throw new Error(`Job '${jobName}' no encontrado`);
     }
 
-    logger.info(Ejecutando job manualmente: );
+    logger.info(`Ejecutando job manualmente: ${jobName}`);
     await this.executeJob(jobConfig);
-    return { message: Job  ejecutado };
+    return { message: `Job ${jobName} ejecutado` };
   }
 
   /**
@@ -253,6 +253,73 @@ class SchedulerService {
       this.start();
     }
     logger.info('Scheduler recargado');
+  }
+
+  /**
+   * Save a job to the configuration file
+   */
+  async saveJob(job) {
+    try {
+      // Load current config
+      let config = { jobs: [] };
+      if (fs.existsSync(this.configPath)) {
+        const data = fs.readFileSync(this.configPath, 'utf-8');
+        config = JSON.parse(data);
+      }
+
+      // Find and update or add job
+      const existingIndex = config.jobs.findIndex(j => j.name === job.name);
+      if (existingIndex >= 0) {
+        config.jobs[existingIndex] = job;
+      } else {
+        config.jobs.push(job);
+      }
+
+      // Write config
+      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+
+      // Reload scheduler
+      await this.reload();
+
+      return { message: 'Job saved successfully' };
+    } catch (error) {
+      logger.error('Error saving job:', error);
+      throw new Error('Failed to save job: ' + error.message);
+    }
+  }
+
+  /**
+   * Delete a job from the configuration file
+   */
+  async deleteJob(jobName) {
+    try {
+      // Load current config
+      if (!fs.existsSync(this.configPath)) {
+        throw new Error('Schedule configuration file not found');
+      }
+
+      const data = fs.readFileSync(this.configPath, 'utf-8');
+      const config = JSON.parse(data);
+
+      // Find and remove job
+      const initialLength = config.jobs.length;
+      config.jobs = config.jobs.filter(j => j.name !== jobName);
+
+      if (config.jobs.length === initialLength) {
+        throw new Error(`Job '${jobName}' not found`);
+      }
+
+      // Write config
+      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+
+      // Reload scheduler
+      await this.reload();
+
+      return { message: 'Job deleted successfully' };
+    } catch (error) {
+      logger.error('Error deleting job:', error);
+      throw new Error('Failed to delete job: ' + error.message);
+    }
   }
 }
 
