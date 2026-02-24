@@ -268,7 +268,7 @@ class DatabaseService {
 
             for await (const line of rl) {
               if (!line.startsWith('\\restrict') && !line.startsWith('\\unrestrict')) {
-                writeStream.write(line + '\\n');
+                writeStream.write(line + '\n');
               }
             }
             writeStream.end();
