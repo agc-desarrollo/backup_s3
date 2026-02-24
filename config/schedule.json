@@ -1,9 +1,10 @@
 {
   "jobs": [
     {
-      "name": "weekday-folder-backup",
-      "description": "Backup folders Monday-Friday at 11 PM",
-      "type": "folder",
+      "name": "diarioDB",
+      "description": "DB TOdos los dias",
+      "type": "database",
+      "time": "23:00",
       "days": [
         1,
         2,
@@ -11,30 +12,12 @@
         4,
         5
       ],
-      "time": "23:00",
-      "enabled": true,
       "rotation": {
         "keepLast": 10,
         "keepWeeks": 3,
         "keepMonths": 2
-      }
-    },
-    {
-      "name": "database-backup-mwf",
-      "description": "Backup database Monday, Wednesday, Friday at 11:30 PM",
-      "type": "database",
-      "days": [
-        1,
-        3,
-        5
-      ],
-      "time": "23:30",
-      "enabled": true,
-      "rotation": {
-        "keepLast": 5,
-        "keepWeeks": 4,
-        "keepDays": 14
-      }
+      },
+      "enabled": true
     }
   ]
 }

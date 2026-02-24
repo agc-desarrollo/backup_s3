@@ -66,6 +66,46 @@ router.get('/objects/:key/download', async (req, res) => {
   }
 });
 
+// DELETE /api/s3/objects/:key - Eliminar objeto de S3
+router.delete('/objects/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+
+    if (!key) {
+      return res.status(400).json({
+        success: false,
+        message: 'Clave del objeto requerida'
+      });
+    }
+
+    // Decodificar la clave del objeto
+    const decodedKey = decodeURIComponent(key);
+
+    logger.info('Eliminando objeto S3', {
+      key: decodedKey,
+      ip: req.ip
+    });
+
+    // Eliminar el objeto de S3
+    await s3Service.deleteObject(decodedKey);
+
+    res.json({
+      success: true,
+      message: 'Objeto eliminado correctamente',
+      key: decodedKey
+    });
+
+  } catch (error) {
+    logger.error('Error al eliminar objeto S3:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Error al eliminar objeto',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/s3/objects - Listar objetos en S3
 router.get('/objects', async (req, res) => {
   try {

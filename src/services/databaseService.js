@@ -9,6 +9,7 @@ import { dirname } from 'path';
 import archiver from 'archiver';
 import { logger } from './logger.js';
 import { configService } from './configService.js';
+import readline from 'readline';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,25 +26,25 @@ class DatabaseService {
     let insertStatements = '';
     let headers = [];
     let dataRows = [];
-    
+
     // Filtrar líneas válidas (ignorar separadores y headers)
     const validLines = lines.filter(line => {
       const trimmed = line.trim();
-      return trimmed && 
-             !trimmed.startsWith('+') && 
-             !trimmed.startsWith('|') && 
-             trimmed.length > 0;
+      return trimmed &&
+        !trimmed.startsWith('+') &&
+        !trimmed.startsWith('|') &&
+        trimmed.length > 0;
     });
-    
+
     if (validLines.length === 0) {
       return `-- Tabla ${tableName} está vacía\n`;
     }
-    
+
     // Procesar líneas para extraer headers y datos
     let headerFound = false;
     for (const line of validLines) {
       const columns = line.split('\t').map(col => col.trim());
-      
+
       if (!headerFound && columns.length > 1) {
         headers = columns;
         headerFound = true;
@@ -51,14 +52,14 @@ class DatabaseService {
         dataRows.push(columns);
       }
     }
-    
+
     if (dataRows.length === 0) {
       return `-- Tabla ${tableName} está vacía\n`;
     }
-    
+
     // Generar INSERT statements
     insertStatements += `-- Datos para tabla ${tableName}\n`;
-    
+
     for (const row of dataRows) {
       const values = row.map(value => {
         if (value === null || value === 'NULL' || value === '') {
@@ -67,11 +68,11 @@ class DatabaseService {
         // Escapar comillas simples y envolver en comillas
         return "'" + value.replace(/'/g, "\\'") + "'";
       }).join(', ');
-      
+
       const columnNames = headers.map(header => `\`${header}\``).join(', ');
       insertStatements += `INSERT INTO \`${tableName}\` (${columnNames}) VALUES (${values});\n`;
     }
-    
+
     return insertStatements;
   }
 
@@ -80,13 +81,13 @@ class DatabaseService {
     try {
       // Obtener configuración de base de datos desde variables de entorno
       this.config = configService.getDbConfig();
-      
+
       // Validar configuración
       await configService.validateDbConfig();
-      
+
       // Probar conexión
       await this.testConnection();
-      
+
       logger.info(`Servicio de base de datos ${this.config.type} inicializado correctamente`);
     } catch (error) {
       logger.error('Error al inicializar servicio de base de datos:', error);
@@ -104,7 +105,7 @@ class DatabaseService {
       } else {
         throw new Error(`Tipo de base de datos no soportado: ${this.config.type}`);
       }
-      
+
       logger.info(`Conexión exitosa con base de datos ${this.config.type}`);
       return true;
     } catch (error) {
@@ -160,16 +161,16 @@ class DatabaseService {
   async createBackup() {
     try {
       console.log('🔄 Iniciando proceso de backup de base de datos...');
-      
+
       // Verificar que el servicio esté inicializado
       if (!this.config) {
         console.log('⚙️  Inicializando servicio de base de datos...');
         await this.init();
         console.log('✅ Servicio de base de datos inicializado');
       }
-      
+
       console.log(`📊 Configuración de BD: ${this.config.type} - ${this.config.database}`);
-      
+
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupFileName = `${this.config.database}-${timestamp}.sql`;
       const backupPath = path.join(__dirname, '../../temp', backupFileName);
@@ -195,10 +196,10 @@ class DatabaseService {
       const finalPath = backupResult.zipPath || backupPath;
       const finalStats = await fs.stat(finalPath);
       const finalFileName = path.basename(finalPath);
-      
+
       const sizeInMB = (finalStats.size / (1024 * 1024)).toFixed(2);
       console.log(`✅ Backup completado: ${finalFileName} (${sizeInMB} MB)`);
-      
+
       logger.info(`Backup de base de datos creado: ${finalFileName}`, {
         size: finalStats.size,
         path: finalPath,
@@ -206,7 +207,7 @@ class DatabaseService {
         type: this.config.type,
         compressed: !!backupResult.zipPath
       });
-      
+
       return {
         success: true,
         filePath: finalPath,
@@ -246,16 +247,52 @@ class DatabaseService {
       ];
 
       const pgDump = spawn('pg_dump', args, { env });
-      
+
       let stderr = '';
-      
+
       pgDump.stderr.on('data', (data) => {
         stderr += data.toString();
       });
 
-      pgDump.on('close', (code) => {
+      pgDump.on('close', async (code) => {
         if (code === 0) {
-          resolve({ success: true, output: stderr });
+          try {
+            console.log('🧹 Limpiando archivo SQL generado por pg_dump...');
+            const tempFilePath = `${backupPath}.tmp`;
+
+            const writeStream = fsSync.createWriteStream(tempFilePath);
+            const rl = readline.createInterface({
+              input: fsSync.createReadStream(backupPath),
+              crlfDelay: Infinity
+            });
+
+            for await (const line of rl) {
+              if (!line.startsWith('\\restrict') && !line.startsWith('\\unrestrict')) {
+                writeStream.write(line + '\\n');
+              }
+            }
+            writeStream.end();
+
+            await new Promise((res, rej) => {
+              writeStream.on('finish', res);
+              writeStream.on('error', rej);
+            });
+
+            await fs.unlink(backupPath);
+            await fs.rename(tempFilePath, backupPath);
+            console.log('✅ Archivo SQL limpiado correctamente');
+
+            console.log('🗜️ Iniciando compresión de backup...');
+            const zipPath = await this.compressBackupFile(backupPath);
+            console.log('🗜️ Archivo comprimido exitosamente');
+
+            console.log('🧹 Eliminando archivo temporal SQL original...');
+            await fs.unlink(backupPath);
+
+            resolve({ success: true, output: stderr, zipPath });
+          } catch (error) {
+            reject(new Error(`Error post-procesando pg_dump: ${error.message}`));
+          }
         } else {
           reject(new Error(`pg_dump falló con código ${code}: ${stderr}`));
         }
@@ -272,7 +309,7 @@ class DatabaseService {
     // Obtener herramienta especificada desde configuración
     const backupTool = process.env.MYSQL_BACKUP_TOOL || 'mysqldump';
     console.log(`🔧 Usando herramienta de backup MySQL: ${backupTool}`);
-    
+
     // Usar únicamente la herramienta especificada sin fallback
     if (backupTool === 'mysqlsh') {
       console.log('🐚 Ejecutando backup con MySQL Shell...');
@@ -309,9 +346,9 @@ class DatabaseService {
 
       console.log('⚡ Iniciando proceso mysqldump...');
       const mysqldump = spawn('mysqldump', args);
-      
+
       let stderr = '';
-      
+
       mysqldump.stderr.on('data', (data) => {
         stderr += data.toString();
         // Mostrar progreso si hay mensajes informativos
@@ -328,23 +365,23 @@ class DatabaseService {
             // Comprimir el archivo SQL en un ZIP
             const zipPath = await this.compressBackupFile(backupPath);
             console.log('🗜️  Archivo comprimido exitosamente');
-            
+
             console.log('🧹 Limpiando archivo temporal SQL...');
             // Eliminar el archivo SQL original
             await fs.unlink(backupPath);
-            
+
             // Filtrar warnings de password de mysqldump del output
             const filteredOutput = stderr
               .split('\n')
               .filter(line => {
                 const lowerLine = line.toLowerCase();
-                return !lowerLine.includes('warning') || 
-                       (!lowerLine.includes('password') && 
-                        !lowerLine.includes('using a password on the command line'));
+                return !lowerLine.includes('warning') ||
+                  (!lowerLine.includes('password') &&
+                    !lowerLine.includes('using a password on the command line'));
               })
               .join('\n')
               .trim();
-            
+
             logger.info(`Backup mysqldump comprimido creado: ${zipPath}`);
             resolve({ success: true, output: filteredOutput, tool: 'mysqldump', zipPath });
           } catch (error) {
@@ -365,13 +402,13 @@ class DatabaseService {
   async createMySQLBackupWithShell(backupPath) {
     return new Promise((resolve, reject) => {
       const connectionUri = `mysql://${this.config.username}:${this.config.password}@${this.config.host}:${this.config.port}/${this.config.database}`;
-      
+
       // Timeout de 30 segundos para evitar que se cuelgue
       const timeout = setTimeout(() => {
         mysqlsh.kill('SIGKILL');
         reject(new Error('MySQL Shell timeout - el proceso se colgó después de 30 segundos'));
       }, 30000);
-      
+
       // Usar un script SQL personalizado que no requiera permisos de sistema
       const sqlScript = `
         -- Backup de base de datos ${this.config.database}
@@ -385,7 +422,7 @@ class DatabaseService {
         CREATE DATABASE IF NOT EXISTS \`${this.config.database}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         USE \`${this.config.database}\`;
       `;
-      
+
       const args = [
         '--uri', connectionUri,
         '--sql',
@@ -393,14 +430,14 @@ class DatabaseService {
       ];
 
       const mysqlsh = spawn('mysqlsh', args);
-      
+
       let stdout = '';
       let stderr = '';
-      
+
       mysqlsh.stdout.on('data', (data) => {
         stdout += data.toString();
       });
-      
+
       mysqlsh.stderr.on('data', (data) => {
         stderr += data.toString();
       });
@@ -411,19 +448,19 @@ class DatabaseService {
           try {
             // Procesar la lista de tablas y crear backup tabla por tabla
             const backupResult = await this.createTableByTableBackup(backupPath, connectionUri, stdout);
-            
+
             // Filtrar warnings de password de MySQL Shell del stderr si los hay
             const filteredStderr = stderr
               .split('\n')
               .filter(line => {
                 const lowerLine = line.toLowerCase();
-                return !lowerLine.includes('warning') || 
-                       (!lowerLine.includes('password') && 
-                        !lowerLine.includes('using a password on the command line'));
+                return !lowerLine.includes('warning') ||
+                  (!lowerLine.includes('password') &&
+                    !lowerLine.includes('using a password on the command line'));
               })
               .join('\n')
               .trim();
-            
+
             resolve({ success: true, output: stdout, tool: 'mysqlsh', zipPath: backupResult.zipPath, stderr: filteredStderr });
           } catch (error) {
             reject(new Error(`Error creando backup tabla por tabla: ${error.message}`));
@@ -446,24 +483,24 @@ class DatabaseService {
       // Parsear la salida de SHOW TABLES
       const lines = tablesOutput.split('\n');
       const tables = [];
-      
+
       // Extraer nombres de tablas (ignorar headers y líneas vacías)
       for (const line of lines) {
         const trimmed = line.trim();
         // Ignorar líneas vacías, headers y líneas con caracteres especiales
-        if (trimmed && 
-            !trimmed.includes('Tables_in_') && 
-            !trimmed.includes('+') && 
-            !trimmed.includes('-') &&
-            !trimmed.includes('|') &&
-            trimmed.length > 0) {
+        if (trimmed &&
+          !trimmed.includes('Tables_in_') &&
+          !trimmed.includes('+') &&
+          !trimmed.includes('-') &&
+          !trimmed.includes('|') &&
+          trimmed.length > 0) {
           tables.push(trimmed);
         }
       }
-      
+
       logger.info(`Encontradas ${tables.length} tablas para backup: ${tables.join(', ')}`);
       console.log(`📋 Procesando ${tables.length} tablas para backup...`);
-      
+
       let sqlContent = `-- Backup de base de datos ${this.config.database}\n`;
       sqlContent += `-- Generado el: ${new Date().toISOString()}\n\n`;
       sqlContent += `SET FOREIGN_KEY_CHECKS=0;\n`;
@@ -471,14 +508,14 @@ class DatabaseService {
       sqlContent += `SET time_zone = "+00:00";\n\n`;
       sqlContent += `CREATE DATABASE IF NOT EXISTS \`${this.config.database}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n`;
       sqlContent += `USE \`${this.config.database}\`;\n\n`;
-      
+
       console.log('🔄 Iniciando backup tabla por tabla...');
-      
+
       // Crear backup de cada tabla individualmente
       for (let i = 0; i < tables.length; i++) {
         const table = tables[i];
         const progress = Math.round(((i + 1) / tables.length) * 100);
-        
+
         try {
           console.log(`📊 [${i + 1}/${tables.length}] Procesando tabla: ${table} (${progress}%)`);
           const tableBackup = await this.backupSingleTable(connectionUri, table);
@@ -490,73 +527,73 @@ class DatabaseService {
           sqlContent += `-- Error haciendo backup de tabla ${table}: ${error.message}\n\n`;
         }
       }
-      
+
       sqlContent += `SET FOREIGN_KEY_CHECKS=1;\n`;
-      
+
       // Escribir archivo SQL
       await fs.writeFile(backupPath, sqlContent);
-      
+
       logger.info(`Backup completado: ${backupPath}`);
-      
+
       // Comprimir el archivo SQL en un ZIP
       const zipPath = await this.compressBackupFile(backupPath);
-      
+
       // Eliminar el archivo SQL original
       await fs.unlink(backupPath);
-      
+
       logger.info(`Backup comprimido creado: ${zipPath}`);
-      
+
       return { zipPath };
-      
+
     } catch (error) {
       throw new Error(`Error creando backup tabla por tabla: ${error.message}`);
     }
   }
-  
+
   // Comprimir archivo de backup en ZIP
   async compressBackupFile(sqlFilePath) {
     return new Promise((resolve, reject) => {
       const zipPath = sqlFilePath.replace('.sql', '.zip');
       console.log(`🗜️  Iniciando compresión: ${path.basename(sqlFilePath)} -> ${path.basename(zipPath)}`);
-      
+
       const output = fsSync.createWriteStream(zipPath);
       const archive = archiver('zip', {
         zlib: { level: 9 } // Máximo nivel de compresión
       });
-      
+
       output.on('close', () => {
         const compressedSizeKB = (archive.pointer() / 1024).toFixed(2);
         console.log(`✅ Compresión completada: ${compressedSizeKB} KB`);
         logger.info(`Archivo comprimido: ${archive.pointer()} bytes`);
         resolve(zipPath);
       });
-      
+
       output.on('error', (err) => {
         console.error(`❌ Error creando archivo ZIP: ${err.message}`);
         reject(new Error(`Error creando archivo ZIP: ${err.message}`));
       });
-      
+
       archive.on('error', (err) => {
         console.error(`❌ Error en archiver: ${err.message}`);
         reject(new Error(`Error en archiver: ${err.message}`));
       });
-      
+
       archive.on('progress', (progress) => {
         if (progress.entries && progress.entries.processed > 0) {
           console.log(`📊 Progreso compresión: ${progress.entries.processed}/${progress.entries.total} archivos`);
         }
       });
-      
+
       archive.pipe(output);
-      
+
       // Agregar el archivo SQL al ZIP
       const fileName = path.basename(sqlFilePath);
       archive.file(sqlFilePath, { name: fileName });
-      
+
       archive.finalize();
     });
   }
-  
+
   // Hacer backup de una sola tabla
   async backupSingleTable(connectionUri, tableName) {
     return new Promise((resolve, reject) => {
@@ -567,14 +604,14 @@ class DatabaseService {
       ];
 
       const mysqlsh = spawn('mysqlsh', args);
-      
+
       let stdout = '';
       let stderr = '';
-      
+
       mysqlsh.stdout.on('data', (data) => {
         stdout += data.toString();
       });
-      
+
       mysqlsh.stderr.on('data', (data) => {
         stderr += data.toString();
       });
@@ -584,19 +621,19 @@ class DatabaseService {
           try {
             // Extraer CREATE TABLE statement
             let createStatement = this.extractCreateStatement(stdout, tableName);
-            
+
             // Obtener datos de la tabla
             const tableData = await this.getTableData(connectionUri, tableName);
-            
+
             let result = `-- Estructura de tabla para ${tableName}\n`;
             result += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
             result += createStatement + ';\n\n';
-            
+
             if (tableData) {
               result += `-- Datos de tabla para ${tableName}\n`;
               result += tableData;
             }
-            
+
             resolve(result);
           } catch (error) {
             reject(new Error(`Error procesando tabla ${tableName}: ${error.message}`));
@@ -611,13 +648,13 @@ class DatabaseService {
       });
     });
   }
-  
+
   // Extraer CREATE TABLE statement del output
   extractCreateStatement(output, tableName) {
     const lines = output.split('\n');
     let createStatement = '';
     let capturing = false;
-    
+
     for (const line of lines) {
       if (line.includes('CREATE TABLE')) {
         capturing = true;
@@ -629,10 +666,10 @@ class DatabaseService {
         }
       }
     }
-    
+
     return createStatement.trim();
   }
-  
+
   // Obtener datos de una tabla
   async getTableData(connectionUri, tableName) {
     return new Promise((resolve, reject) => {
@@ -645,11 +682,11 @@ class DatabaseService {
 
       const describeProcess = spawn('mysqlsh', describeArgs);
       let describeOutput = '';
-      
+
       describeProcess.stdout.on('data', (data) => {
         describeOutput += data.toString();
       });
-      
+
       describeProcess.on('close', (describeCode) => {
         if (describeCode === 0) {
           // Obtener los datos de la tabla
@@ -661,11 +698,11 @@ class DatabaseService {
 
           const selectProcess = spawn('mysqlsh', selectArgs);
           let selectOutput = '';
-          
+
           selectProcess.stdout.on('data', (data) => {
             selectOutput += data.toString();
           });
-          
+
           selectProcess.on('close', (selectCode) => {
             if (selectCode === 0) {
               try {
@@ -721,23 +758,23 @@ class DatabaseService {
 
     try {
       await client.connect();
-      
+
       // Obtener versión
       const versionResult = await client.query('SELECT version()');
-      
+
       // Obtener tamaño de base de datos
       const sizeResult = await client.query(
         'SELECT pg_size_pretty(pg_database_size($1)) as size',
         [this.config.database]
       );
-      
+
       // Obtener número de tablas
       const tablesResult = await client.query(
         "SELECT count(*) as table_count FROM information_schema.tables WHERE table_schema = 'public'"
       );
-      
+
       await client.end();
-      
+
       return {
         type: 'postgresql',
         version: versionResult.rows[0].version,
@@ -766,21 +803,21 @@ class DatabaseService {
     try {
       // Obtener versión
       const [versionRows] = await connection.execute('SELECT VERSION() as version');
-      
+
       // Obtener tamaño de base de datos
       const [sizeRows] = await connection.execute(
         'SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 1) AS size_mb FROM information_schema.tables WHERE table_schema = ?',
         [this.config.database]
       );
-      
+
       // Obtener número de tablas
       const [tablesRows] = await connection.execute(
         'SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema = ?',
         [this.config.database]
       );
-      
+
       await connection.end();
-      
+
       return {
         type: 'mysql',
         version: versionRows[0].version,
@@ -800,7 +837,7 @@ class DatabaseService {
   async checkBackupTools() {
     const tools = {
       postgresql: { command: 'pg_dump', available: false },
-      mysql: { 
+      mysql: {
         mysqldump: false,
         mysqlsh: false,
         available: false
@@ -840,18 +877,18 @@ class DatabaseService {
   async executeCommand(command, args) {
     return new Promise((resolve, reject) => {
       const process = spawn(command, args);
-      
+
       let stdout = '';
       let stderr = '';
-      
+
       process.stdout.on('data', (data) => {
         stdout += data.toString();
       });
-      
+
       process.stderr.on('data', (data) => {
         stderr += data.toString();
       });
-      
+
       process.on('close', (code) => {
         if (code === 0) {
           resolve({ stdout, stderr });
@@ -859,7 +896,7 @@ class DatabaseService {
           reject(new Error(`Comando falló con código ${code}: ${stderr}`));
         }
       });
-      
+
       process.on('error', (error) => {
         reject(error);
       });
@@ -871,21 +908,21 @@ class DatabaseService {
     try {
       const tempDir = path.join(__dirname, '../../temp');
       const cutoffTime = Date.now() - (olderThanHours * 60 * 60 * 1000);
-      
+
       const files = await fs.readdir(tempDir);
       let deletedCount = 0;
-      
+
       for (const file of files) {
         const filePath = path.join(tempDir, file);
         const stats = await fs.stat(filePath);
-        
+
         if (stats.mtime.getTime() < cutoffTime) {
           await fs.unlink(filePath);
           deletedCount++;
           logger.info(`Archivo temporal eliminado: ${file}`);
         }
       }
-      
+
       logger.info(`Limpieza de archivos temporales completada: ${deletedCount} archivos eliminados`);
       return deletedCount;
     } catch (error) {
