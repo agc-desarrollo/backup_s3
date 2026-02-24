@@ -1,20 +1,41 @@
-# Referencia Rápida de la API - Sistema de Backup S3
+# Referencia de API
 
-## Información General
-
-**Base URL:** `http://localhost:3000/api`  
-**Autenticación:** Header `api-token: tu-token`  
+**Base URL:** `http://localhost:3000/api`
+**Autenticación:** Header `api-token: tu-token` (requerido en todos los endpoints)
 **Content-Type:** `application/json` (para POST/PUT)
 
-## Endpoints de Backup
+## Respuesta Estándar
 
-### Backup Manual de Carpetas
+```json
+// Éxito
+{ "success": true, "data": { ... } }
+
+// Error
+{ "success": false, "message": "Descripción", "code": "ERROR_CODE" }
+```
+
+## Códigos HTTP
+
+| Código | Uso |
+|--------|-----|
+| 200 | Operación exitosa |
+| 400 | Datos de entrada inválidos |
+| 401 | Token faltante o inválido |
+| 404 | Recurso no encontrado |
+| 409 | Conflicto (ej. backup en progreso) |
+| 500 | Error interno del servidor |
+
+---
+
+## Backup
+
+### POST /api/backup/folders
+Ejecuta backup de carpetas configuradas en `config/config.json`. No requiere body.
+
 ```http
 POST /api/backup/folders
 api-token: tu-token
 ```
-
-**Descripción:** Ejecuta un backup de las carpetas configuradas en `config/config.json`. No requiere parámetros en el cuerpo de la petición.
 
 **Respuesta:**
 ```json
@@ -35,13 +56,13 @@ api-token: tu-token
 }
 ```
 
-### Backup Manual de Base de Datos
+### POST /api/backup/database
+Ejecuta backup de BD usando la configuración del `.env`. No requiere body.
+
 ```http
 POST /api/backup/database
 api-token: tu-token
 ```
-
-**Descripción:** Ejecuta un backup de la base de datos usando la configuración del archivo `.env`. No requiere parámetros en el cuerpo de la petición.
 
 **Respuesta:**
 ```json
@@ -54,7 +75,6 @@ api-token: tu-token
     "success": true,
     "databaseBackup": {
       "success": true,
-      "filePath": "/temp/database-backup.zip",
       "fileName": "database-backup.zip",
       "size": 1048576,
       "database": "mi_base_datos"
@@ -69,17 +89,9 @@ api-token: tu-token
 }
 ```
 
-**Nota:** Este endpoint lee la configuración de la base de datos desde las variables de entorno (.env), por lo que no requiere parámetros en el body.
+### GET /api/backup/status
+Estado actual de backups.
 
-
-
-### Estado del Backup
-```http
-GET /api/backup/status
-api-token: tu-token
-```
-
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -93,13 +105,9 @@ api-token: tu-token
 }
 ```
 
-### Estadísticas de Backup
-```http
-GET /api/backup/stats
-api-token: tu-token
-```
+### GET /api/backup/stats
+Estadísticas de operaciones de backup.
 
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -112,13 +120,14 @@ api-token: tu-token
 }
 ```
 
-### Historial de Backups
-```http
-GET /api/backup/history?page=1&limit=20
-api-token: tu-token
-```
+### GET /api/backup/history
 
-**Respuesta:**
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| page | number | 1 | Número de página |
+| limit | number | 20 | Resultados por página |
+| status | string | - | Filtrar por estado |
+
 ```json
 {
   "success": true,
@@ -130,21 +139,13 @@ api-token: tu-token
       "size": "150 MB"
     }
   ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 45
-  }
+  "pagination": { "page": 1, "limit": 20, "total": 45 }
 }
 ```
 
-### Eliminar Backup
-```http
-DELETE /api/backup/:key
-api-token: tu-token
-```
+### DELETE /api/backup/:key
+Elimina un backup específico de S3.
 
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -153,18 +154,11 @@ api-token: tu-token
 }
 ```
 
-### Limpiar Backups Antiguos
-```http
-POST /api/backup/cleanup
-Content-Type: application/json
-api-token: tu-token
+### POST /api/backup/cleanup
+Elimina backups más antiguos que los días especificados.
 
-{
-  "daysToKeep": 30
-}
-```
+**Body:** `{ "daysToKeep": 30 }`
 
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -174,20 +168,18 @@ api-token: tu-token
 }
 ```
 
-## Endpoints de S3
+---
 
-### Listar Objetos
-```http
-GET /api/s3/objects?prefix=backups/&maxKeys=50&continuationToken=abc123
-api-token: tu-token
-```
+## S3 (Almacenamiento)
 
-**Parámetros de consulta:**
-- `prefix` (opcional): Filtrar por prefijo
-- `maxKeys` (opcional): Máximo objetos (1-1000, default: 100)
-- `continuationToken` (opcional): Token de paginación
+### GET /api/s3/objects
 
-**Respuesta:**
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| prefix | string | - | Filtrar por prefijo de ruta |
+| maxKeys | number | 100 | Máximo objetos (1-1000) |
+| continuationToken | string | - | Token para paginación |
+
 ```json
 {
   "success": true,
@@ -210,13 +202,12 @@ api-token: tu-token
 }
 ```
 
-### Estructura de Carpetas
-```http
-GET /api/s3/folders?prefix=backups/
-api-token: tu-token
-```
+### GET /api/s3/folders
 
-**Respuesta:**
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| prefix | string | Prefijo para listar sub-carpetas |
+
 ```json
 {
   "success": true,
@@ -228,32 +219,20 @@ api-token: tu-token
       "totalSize": 52428800,
       "totalSizeFormatted": "50.00 MB",
       "lastModified": "2025-01-15T14:30:00.000Z"
-    },
-    {
-      "name": "folders/",
-      "fullPath": "backups/folders/",
-      "objectCount": 8,
-      "totalSize": 104857600,
-      "totalSizeFormatted": "100.00 MB",
-      "lastModified": "2025-01-15T14:25:00.000Z"
     }
   ],
   "totalFolders": 2
 }
 ```
 
-### Buscar Objetos
-```http
-GET /api/s3/search?q=backup&limit=20&prefix=backups/
-api-token: tu-token
-```
+### GET /api/s3/search
 
-**Parámetros de consulta:**
-- `q` (requerido): Término de búsqueda
-- `limit` (opcional): Máximo resultados (1-100, default: 20)
-- `prefix` (opcional): Limitar búsqueda a prefijo
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| q | string | *(requerido)* | Término de búsqueda |
+| limit | number | 20 | Máximo resultados (1-100) |
+| prefix | string | - | Limitar búsqueda a prefijo |
 
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -273,13 +252,9 @@ api-token: tu-token
 }
 ```
 
-### Estadísticas de S3
-```http
-GET /api/s3/stats
-api-token: tu-token
-```
+### GET /api/s3/stats
+Estadísticas de uso del almacenamiento.
 
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -290,36 +265,16 @@ api-token: tu-token
     "totalSizeFormatted": "1.00 GB",
     "averageFileSize": 7158278,
     "averageFileSizeFormatted": "6.83 MB",
-    "oldestFile": {
-      "key": "backups/old-backup.sql",
-      "lastModified": "2025-01-01T00:00:00.000Z"
-    },
-    "newestFile": {
-      "key": "backups/latest-backup.sql",
-      "lastModified": "2025-01-15T17:30:00.000Z"
-    },
-    "fileTypes": {
-      "sql": 50,
-      "zip": 75,
-      "txt": 25
-    }
+    "oldestFile": { "key": "backups/old.sql", "lastModified": "2025-01-01T00:00:00.000Z" },
+    "newestFile": { "key": "backups/latest.sql", "lastModified": "2025-01-15T17:30:00.000Z" },
+    "fileTypes": { "sql": 50, "zip": 75, "txt": 25 }
   }
 }
 ```
 
-### Detalles de Objeto
-```http
-GET /api/s3/objects/{key}/details
-api-token: tu-token
-```
+### GET /api/s3/objects/:key/details
+Detalles de un objeto específico. La key debe estar URL-encoded.
 
-**Ejemplo:**
-```http
-GET /api/s3/objects/backups%2Fdatabase%2F2025-01-15%2Fbackup.sql/details
-api-token: tu-token
-```
-
-**Respuesta:**
 ```json
 {
   "success": true,
@@ -330,122 +285,85 @@ api-token: tu-token
     "lastModified": "2025-01-15T14:30:00.000Z",
     "etag": "\"abc123def456\"",
     "contentType": "application/sql",
-    "metadata": {
-      "backup-type": "database",
-      "database-name": "mi_base_datos"
-    },
+    "metadata": { "backup-type": "database", "database-name": "mi_base_datos" },
     "downloadUrl": "https://presigned-url-here"
   }
 }
 ```
 
-## Endpoints de Configuración
+### GET /api/s3/objects/:key/download
+Descarga directa de un objeto (streaming para archivos grandes).
 
-### Obtener Configuración
-```http
-GET /api/config
-api-token: tu-token
-```
+---
 
-**Respuesta:**
+## Configuración
+
+### GET /api/config
+Obtiene la configuración actual (no expone credenciales S3/BD).
+
 ```json
 {
   "success": true,
   "config": {
-    "backupFolders": [
-      "C:\\Users\\usuario\\Documentos",
-      "C:\\Proyectos"
-    ],
+    "backupFolders": ["C:\\Users\\usuario\\Documentos", "C:\\Proyectos"],
     "updatedAt": "2025-01-15T10:30:00.000Z"
   },
-  "stats": {
-    "totalFolders": 2,
-    "lastUpdate": "2025-01-15T10:30:00.000Z"
-  }
+  "stats": { "totalFolders": 2, "lastUpdate": "2025-01-15T10:30:00.000Z" }
 }
 ```
 
-### Actualizar Configuración
-```http
-POST /api/config
-Content-Type: application/json
-api-token: tu-token
+### POST /api/config
+Actualiza las carpetas de backup.
 
+**Body:**
+```json
 {
-  "backupFolders": [
-    "C:\\nueva\\ruta",
-    "C:\\otra\\ruta"
-  ]
+  "backupFolders": ["C:\\nueva\\ruta", "C:\\otra\\ruta"]
 }
 ```
 
-### Verificar Herramientas de Backup
-```http
-GET /api/config/backup-tools
-api-token: tu-token
-```
+### GET /api/config/backup-tools
+Lista las herramientas de backup disponibles en el sistema.
 
-**Respuesta:**
 ```json
 {
   "success": true,
   "tools": {
-    "postgresql": {
-      "command": "pg_dump",
-      "available": true
-    },
-    "mysql": {
-      "mysqldump": true,
-      "mysqlsh": false,
-      "available": true
-    }
+    "postgresql": { "command": "pg_dump", "available": true },
+    "mysql": { "mysqldump": true, "mysqlsh": false, "available": true }
   }
 }
 ```
 
-### Información del Sistema
-```http
-GET /api/config/system-info
-api-token: tu-token
-```
+### GET /api/config/system-info
+Información del sistema y recursos.
 
-**Respuesta:**
 ```json
 {
   "success": true,
   "systemInfo": {
-    "node": {
-      "version": "v18.17.0",
-      "platform": "win32",
-      "arch": "x64"
-    },
-    "memory": {
-      "used": 45,
-      "total": 128,
-      "external": 12
-    },
+    "node": { "version": "v18.17.0", "platform": "win32", "arch": "x64" },
+    "memory": { "used": 45, "total": 128, "external": 12 },
     "uptime": 3600,
     "environment": "development"
   }
 }
 ```
 
-## Endpoints de Logs
+---
 
-### Obtener Logs
-```http
-GET /api/logs?page=1&limit=50&level=info&startDate=2025-01-15&endDate=2025-01-16
-api-token: tu-token
-```
+## Logs
 
-**Parámetros de consulta:**
-- `page` (opcional): Número de página (default: 1)
-- `limit` (opcional): Logs por página (default: 50, max: 100)
-- `level` (opcional): Nivel de log (error, warn, info, debug)
-- `startDate` (opcional): Fecha inicio (YYYY-MM-DD)
-- `endDate` (opcional): Fecha fin (YYYY-MM-DD)
+### GET /api/logs
 
-**Respuesta:**
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| page | number | 1 | Número de página |
+| limit | number | 50 | Logs por página (max: 100) |
+| level | string | - | Nivel: error, warn, info, debug |
+| startDate | string | - | Fecha inicio (YYYY-MM-DD) |
+| endDate | string | - | Fecha fin (YYYY-MM-DD) |
+
 ```json
 {
   "success": true,
@@ -454,225 +372,94 @@ api-token: tu-token
       "timestamp": "2025-01-15T14:30:00.000Z",
       "level": "info",
       "message": "Backup de carpetas completado exitosamente",
-      "meta": {
-        "jobId": "backup-folders-1642678800",
-        "duration": 120000
-      }
+      "meta": { "jobId": "backup-folders-1642678800", "duration": 120000 }
     }
   ],
-  "pagination": {
-    "page": 1,
-    "limit": 50,
-    "total": 150,
-    "pages": 3
-  }
+  "pagination": { "page": 1, "limit": 50, "total": 150, "pages": 3 }
 }
 ```
 
-### Estadísticas de Logs
-```http
-GET /api/logs/stats
-api-token: tu-token
-```
+### GET /api/logs/stats
+Estadísticas de logs por nivel.
 
-**Respuesta:**
 ```json
 {
   "success": true,
   "stats": {
     "totalLogs": 1250,
-    "byLevel": {
-      "error": 15,
-      "warn": 45,
-      "info": 1100,
-      "debug": 90
-    },
+    "byLevel": { "error": 15, "warn": 45, "info": 1100, "debug": 90 },
     "lastEntry": "2025-01-15T14:30:00.000Z"
   }
 }
 ```
 
-### Logs Recientes
-```http
-GET /api/logs/recent?limit=10
-api-token: tu-token
-```
+### GET /api/logs/recent
 
-**Respuesta:**
-```json
-{
-  "success": true,
-  "logs": [
-    {
-      "timestamp": "2025-01-15T14:30:00.000Z",
-      "level": "info",
-      "message": "Backup completado exitosamente"
-    }
-  ]
-}
-```
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| limit | number | 10 | Cantidad de logs recientes |
+| hours | number | 24 | Horas hacia atrás |
+| level | string | - | Nivel de log a filtrar |
 
-### Logs de Backup
-```http
-GET /api/logs/backup?limit=20
-api-token: tu-token
-```
+### GET /api/logs/backup
+Logs específicos de operaciones de backup.
 
-**Respuesta:**
-```json
-{
-  "success": true,
-  "logs": [
-    {
-      "timestamp": "2025-01-15T14:30:00.000Z",
-      "level": "info",
-      "message": "Backup de carpetas iniciado",
-      "jobId": "backup-folders-1642678800"
-    }
-  ]
-}
-```
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| limit | number | 20 | Cantidad máxima |
 
-### Logs de Errores
-```http
-GET /api/logs/errors?limit=20
-api-token: tu-token
-```
+### GET /api/logs/errors
+Solo logs de nivel error.
 
-**Respuesta:**
-```json
-{
-  "success": true,
-  "logs": [
-    {
-      "timestamp": "2025-01-15T14:25:00.000Z",
-      "level": "error",
-      "message": "Error conectando a S3",
-      "error": "Connection timeout"
-    }
-  ]
-}
-```
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| limit | number | 20 | Cantidad máxima |
 
-### Buscar en Logs
-```http
-GET /api/logs/search?q=backup&limit=20
-api-token: tu-token
-```
+### GET /api/logs/search
 
-**Respuesta:**
-```json
-{
-  "success": true,
-  "logs": [
-    {
-      "timestamp": "2025-01-15T14:30:00.000Z",
-      "level": "info",
-      "message": "Backup de carpetas completado exitosamente"
-    }
-  ],
-  "total": 45
-}
-```
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| q | string | *(requerido)* | Texto a buscar |
+| limit | number | 20 | Cantidad máxima |
 
-### Exportar Logs
-```http
-GET /api/logs/export?format=csv&startDate=2025-01-15&endDate=2025-01-16
-api-token: tu-token
-```
+### GET /api/logs/export
 
-**Respuesta:** Archivo CSV con los logs del período especificado
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| format | string | csv | Formato: json, csv, txt |
+| startDate | string | - | Fecha inicio (ISO 8601) |
+| endDate | string | - | Fecha fin (ISO 8601) |
 
-## Códigos de Estado HTTP
-
-| Código | Descripción |
-|--------|-------------|
-| 200 | Éxito |
-| 201 | Creado |
-| 400 | Solicitud incorrecta |
-| 401 | No autorizado (token inválido) |
-| 404 | No encontrado |
-| 409 | Conflicto (backup en progreso) |
-| 500 | Error interno del servidor |
-
-## Códigos de Error Comunes
-
-### Error de Autenticación
-```json
-{
-  "success": false,
-  "message": "Token de autenticación requerido",
-  "code": "AUTH_REQUIRED"
-}
-```
-
-### Error de Validación
-```json
-{
-  "success": false,
-  "message": "Parámetros inválidos",
-  "errors": [
-    {
-      "field": "folders",
-      "message": "Al menos una carpeta es requerida"
-    }
-  ]
-}
-```
-
-### Error de Backup en Progreso
-```json
-{
-  "success": false,
-  "message": "Ya hay un backup en progreso",
-  "code": "BACKUP_IN_PROGRESS",
-  "currentJob": "backup-folders-1642678800"
-}
-```
-
-## Ejemplos de Uso con cURL
-
-### Backup Completo
-```bash
-# 1. Verificar estado
-curl -H "api-token: tu-token" http://localhost:3000/api/backup/status
-
-# 2. Backup de carpetas (sin parámetros, usa config.json)
-curl -X POST \
-  -H "api-token: tu-token" \
-  http://localhost:3000/api/backup/folders
-
-# 3. Backup de base de datos
-curl -X POST \
-  -H "api-token: tu-token" \
-  http://localhost:3000/api/backup/database
-
-# 4. Verificar resultados
-curl -H "api-token: tu-token" "http://localhost:3000/api/s3/objects?prefix=backups/"
-```
-
-### Monitoreo
-```bash
-# Ver estadísticas
-curl -H "api-token: tu-token" http://localhost:3000/api/s3/stats
-
-# Ver logs recientes
-curl -H "api-token: tu-token" "http://localhost:3000/api/logs?limit=10"
-
-# Buscar backups de hoy
-curl -H "api-token: tu-token" "http://localhost:3000/api/s3/search?q=2025-01-15"
-```
-
-## Notas Importantes
-
-1. **Autenticación:** Todas las peticiones requieren el header `api-token`
-2. **Codificación:** Las rutas en URLs deben estar URL-encoded
-3. **Paginación:** Usar `continuationToken` para navegar grandes listas
-4. **Límites:** Máximo 1000 objetos por consulta, 100 resultados de búsqueda
-5. **Timeouts:** Las operaciones de backup pueden tomar varios minutos
-6. **Logs:** Los logs se rotan diariamente y se mantienen por 14 días
+Retorna archivo en el formato solicitado con headers de descarga apropiados.
 
 ---
 
-**Documentación completa:** [DOCUMENTACION_USUARIO.md](./DOCUMENTACION_USUARIO.md)  
-**Guía de instalación:** [GUIA_INSTALACION.md](./GUIA_INSTALACION.md)
+## Salud
+
+### GET /api/health
+Verificación del estado del servicio. No requiere autenticación.
+
+```json
+{ "status": "ok", "uptime": 3600 }
+```
+
+---
+
+## Ejemplos cURL
+
+```bash
+# Flujo completo de backup
+curl -H "api-token: tu-token" http://localhost:3000/api/backup/status
+curl -X POST -H "api-token: tu-token" http://localhost:3000/api/backup/folders
+curl -X POST -H "api-token: tu-token" http://localhost:3000/api/backup/database
+curl -H "api-token: tu-token" "http://localhost:3000/api/s3/objects?prefix=backups/"
+
+# Monitoreo
+curl -H "api-token: tu-token" http://localhost:3000/api/s3/stats
+curl -H "api-token: tu-token" "http://localhost:3000/api/logs?limit=10"
+curl -H "api-token: tu-token" "http://localhost:3000/api/s3/search?q=2025-01-15"
+```
+
+---
+
+Referencia completa: [Arquitectura](ARQUITECTURA.md) | [Seguridad](SEGURIDAD.md)
