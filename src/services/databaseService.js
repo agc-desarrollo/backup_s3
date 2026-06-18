@@ -117,11 +117,7 @@ class DatabaseService {
   // Probar conexión PostgreSQL
   async testPostgreSQLConnection() {
     const client = new pg.Client({
-      host: this.config.host,
-      port: this.config.port,
-      user: this.config.username,
-      password: this.config.password,
-      database: this.config.database,
+      connectionString: this.config.connectionString,
       connectionTimeoutMillis: 5000
     });
 
@@ -228,16 +224,10 @@ class DatabaseService {
   // Crear backup PostgreSQL usando pg_dump
   async createPostgreSQLBackup(backupPath) {
     return new Promise((resolve, reject) => {
-      const env = {
-        ...process.env,
-        PGPASSWORD: this.config.password
-      };
-
+      // pg_dump acepta la cadena de conexión directamente con -d (incluye
+      // usuario, contraseña, host, puerto y base de datos).
       const args = [
-        '-h', this.config.host,
-        '-p', this.config.port.toString(),
-        '-U', this.config.username,
-        '-d', this.config.database,
+        '-d', this.config.connectionString,
         '--verbose',
         '--clean',
         '--no-owner',
@@ -246,7 +236,7 @@ class DatabaseService {
         '--file', backupPath
       ];
 
-      const pgDump = spawn('pg_dump', args, { env });
+      const pgDump = spawn('pg_dump', args);
 
       let stderr = '';
 
@@ -749,11 +739,7 @@ class DatabaseService {
   // Obtener información PostgreSQL
   async getPostgreSQLInfo() {
     const client = new pg.Client({
-      host: this.config.host,
-      port: this.config.port,
-      user: this.config.username,
-      password: this.config.password,
-      database: this.config.database
+      connectionString: this.config.connectionString
     });
 
     try {

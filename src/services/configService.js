@@ -69,19 +69,60 @@ class ConfigService {
 
   // Obtener configuración de base de datos desde variables de entorno
   getDbConfig() {
-    let dbType = process.env.DB_TYPE || 'postgresql';
+    // Sin valores por defecto: la presencia de estas variables se valida en el
+    // arranque (startupValidator). 'postgres' se normaliza a 'postgresql'.
+    let dbType = process.env.DB_TYPE;
     if (dbType === 'postgres') {
       dbType = 'postgresql';
     }
 
+    // PostgreSQL se configura mediante una única cadena de conexión. Se parsea
+    // para exponer los campos sueltos (host, puerto, base...) que el resto del
+    // código sigue usando (nombre de archivo de backup, info de la BD, etc.).
+    if (dbType === 'postgresql') {
+      const connectionString = process.env.DB_CONNECTION_STRING;
+      const parsed = this.parsePostgresConnectionString(connectionString);
+      return {
+        type: dbType,
+        connectionString,
+        host: parsed.host,
+        port: parsed.port,
+        username: parsed.username,
+        password: parsed.password,
+        database: parsed.database
+      };
+    }
+
+    // MySQL mantiene los valores sueltos.
     return {
       type: dbType,
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 5432,
-      username: process.env.DB_USERNAME || '',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_DATABASE || ''
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT, 10),
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_DATABASE
     };
+  }
+
+  // Parsear una cadena de conexión PostgreSQL en sus componentes.
+  parsePostgresConnectionString(connectionString) {
+    if (!connectionString) {
+      return { host: undefined, port: undefined, username: undefined, password: undefined, database: undefined };
+    }
+
+    try {
+      const url = new URL(connectionString);
+      const database = url.pathname ? decodeURIComponent(url.pathname.replace(/^\//, '')) : undefined;
+      return {
+        host: url.hostname || undefined,
+        port: url.port ? parseInt(url.port, 10) : 5432,
+        username: url.username ? decodeURIComponent(url.username) : undefined,
+        password: url.password ? decodeURIComponent(url.password) : undefined,
+        database: database || undefined
+      };
+    } catch (error) {
+      throw new Error(`DB_CONNECTION_STRING no es una cadena de conexión válida: ${error.message}`);
+    }
   }
 
   // Actualizar configuración
@@ -146,8 +187,16 @@ class ConfigService {
   // Validar conexión de base de datos desde variables de entorno
   async validateDbConfig() {
     const dbConfig = this.getDbConfig();
-    // Esta función se implementará en el servicio de base de datos
-    // Por ahora solo validamos que los campos requeridos estén presentes
+
+    // PostgreSQL: basta con la cadena de conexión.
+    if (dbConfig.type === 'postgresql') {
+      if (!dbConfig.connectionString) {
+        throw new Error('Falta la variable de entorno requerida: DB_CONNECTION_STRING (PostgreSQL)');
+      }
+      return true;
+    }
+
+    // MySQL: validar los campos sueltos.
     const required = ['type', 'host', 'port', 'username', 'database'];
     const missing = required.filter(field => !dbConfig[field]);
 
