@@ -79,50 +79,44 @@ Editar `config/config.json`:
 - Windows: doble barra invertida `\\`
 - Linux/Mac: barra normal `/`
 
-### 5. Configurar scheduler (opcional)
+### 5. Configurar rotación (opcional)
 
-Para habilitar backups automáticos, crea `config/schedule.json` basado en el ejemplo:
+Los backups se ejecutan vía webhook (`POST /api/backup/database` y
+`POST /api/backup/folders`). No hay scheduler interno: la programación se hace
+con una herramienta externa (cron del sistema, Node-RED, n8n, etc.) que llame a
+esos endpoints.
+
+La rotación (borrado de backups antiguos en S3) se aplica automáticamente tras
+cada backup según `config/rotation.json`. Crea el archivo a partir del ejemplo:
 
 ```bash
-copy config\schedule.example.json config\schedule.json
+copy config\rotation.example.json config\rotation.json
 ```
 
-Edita `config/schedule.json` con tus jobs programados:
+Edita `config/rotation.json` con una política por tipo de backup:
 
 ```json
 {
-  "jobs": [
-    {
-      "name": "weekday-folder-backup",
-      "type": "folder",
-      "days": [1, 2, 3, 4, 5],
-      "time": "23:00",
-      "enabled": true,
-      "rotation": {
-        "keepLast": 10,
-        "keepWeeks": 3,
-        "keepMonths": 2
-      }
-    }
-  ]
+  "database": {
+    "keepLast": 10,
+    "keepWeeks": 3,
+    "keepMonths": 2
+  },
+  "folder": {
+    "keepLast": 10,
+    "keepWeeks": 3,
+    "keepMonths": 2
+  }
 }
 ```
 
-**Parámetros de job:**
-- `name`: Identificador único del job
-- `type`: `"folder"` o `"database"`
-- `days`: Array de días (0=Domingo, 1=Lunes, ..., 6=Sábado)
-- `time`: Hora en formato HH:MM (24 horas)
-- `enabled`: true/false para habilitar/deshabilitar
-- `rotation`: Política de retención (opcional)
+**Campos de política (todos opcionales):**
+- `keepLast`: Mantener los N backups más recientes
+- `keepDays`: Mantener los backups de los últimos N días
+- `keepWeeks`: Mantener un backup por semana, últimas N semanas
+- `keepMonths`: Mantener un backup por mes, últimos N meses
 
-**Variables de entorno requeridas:**
-```env
-API_TOKEN=tu-token-de-api
-ENABLE_SCHEDULER=true
-```
-
-> El scheduler usa el mismo `API_TOKEN` configurado en el archivo `.env` para autenticar las llamadas a la API interna.
+Si el archivo no existe, la rotación se omite y los backups se conservan.
 
 ### 6. Ejecutar
 
@@ -145,9 +139,9 @@ curl -H "api-token: tu-token" http://localhost:3000/api/config
 # Verificar herramientas de BD
 curl -H "api-token: tu-token" http://localhost:3000/api/config/backup-tools
 
-# Verificar scheduler (si está habilitado)
-curl http://localhost:3000/api/scheduler/status
-curl http://localhost:3000/api/scheduler/jobs
+# Ejecutar backups vía webhook (la rotación se aplica automáticamente)
+curl -X POST -H "api-token: tu-token" http://localhost:3000/api/backup/database
+curl -X POST -H "api-token: tu-token" http://localhost:3000/api/backup/folders
 ```
 
 ## Pruebas

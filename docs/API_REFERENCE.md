@@ -445,131 +445,51 @@ Verificación del estado del servicio. No requiere autenticación.
 
 ---
 
-## Scheduler
+## Rotación
 
-### GET /api/scheduler/status
-Estado actual del scheduler. No requiere autenticación.
+No existe scheduler interno. Los backups se ejecutan **únicamente vía webhook**
+(`POST /api/backup/database` y `POST /api/backup/folders`), y la rotación
+(borrado de backups antiguos en S3) se aplica **automáticamente tras cada backup
+exitoso**.
+
+Las políticas se definen en `config/rotation.json`, con una clave por tipo de
+backup (`database` y `folder`):
 
 ```json
 {
-  "success": true,
-  "data": {
-    "isRunning": true,
-    "activeJobs": ["weekday-folder-backup", "database-backup-mwf"],
-    "jobsConfigured": 2,
-    "lastRun": {
-      "weekday-folder-backup": {
-        "startTime": "2026-02-24T23:00:00.000Z",
-        "endTime": "2026-02-24T23:05:00.000Z",
-        "success": true,
-        "type": "folder"
-      }
-    }
+  "database": {
+    "keepLast": 10,
+    "keepWeeks": 3,
+    "keepMonths": 2
+  },
+  "folder": {
+    "keepLast": 10,
+    "keepWeeks": 3,
+    "keepMonths": 2
   }
 }
 ```
 
-### GET /api/scheduler/jobs
-Lista de jobs configurados. No requiere autenticación.
+**Campos de política:**
 
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "name": "weekday-folder-backup",
-      "description": "Backup folders Monday-Friday at 11 PM",
-      "type": "folder",
-      "days": [1, 2, 3, 4, 5],
-      "time": "23:00",
-      "enabled": true,
-      "hasRotation": true,
-      "rotation": {
-        "keepLast": 10,
-        "keepWeeks": 3,
-        "keepMonths": 2
-      }
-    }
-  ]
-}
-```
+| Campo        | Descripción                                            |
+|--------------|--------------------------------------------------------|
+| `keepLast`   | Mantener los N backups más recientes                   |
+| `keepDays`   | Mantener los backups de los últimos N días             |
+| `keepWeeks`  | Mantener un backup por semana, últimas N semanas       |
+| `keepMonths` | Mantener un backup por mes, últimos N meses            |
 
-### POST /api/scheduler/run/:jobName
-Ejecuta un job manualmente. No requiere autenticación.
-
-```http
-POST /api/scheduler/run/weekday-folder-backup
-```
-
-**Respuesta:**
-```json
-{
-  "success": true,
-  "message": "Job weekday-folder-backup ejecutado"
-}
-```
-
-### POST /api/scheduler/reload
-Recarga la configuración del scheduler. No requiere autenticación.
-
-```json
-{
-  "success": true,
-  "message": "Scheduler recargado"
-}
-```
-
-### PUT /api/scheduler/jobs
-Crea o actualiza un job del scheduler. **Requiere autenticación.**
-
-**Body:**
-```json
-{
-  "name": "daily-backup",
-  "description": "Daily backup at 10 PM",
-  "type": "folder",
-  "days": [0, 1, 2, 3, 4, 5, 6],
-  "time": "22:00",
-  "enabled": true,
-  "rotation": {
-    "keepLast": 7,
-    "keepWeeks": 4,
-    "keepMonths": 6
-  }
-}
-```
-
-**Respuesta:**
-```json
-{
-  "success": true,
-  "message": "Job saved",
-  "data": { "message": "Job saved successfully" }
-}
-```
-
-### DELETE /api/scheduler/jobs/:jobName
-Elimina un job del scheduler. **Requiere autenticación.**
-
-```http
-DELETE /api/scheduler/jobs/daily-backup
-```
-
-**Respuesta:**
-```json
-{
-  "success": true,
-  "message": "Job deleted",
-  "data": { "message": "Job deleted successfully" }
-}
-```
+Si el archivo no existe o no hay clave para el tipo, la rotación se omite y el
+backup se conserva igualmente. El resultado de la rotación se incluye en el
+campo `rotation` de la respuesta del endpoint de backup. El archivo se lee en
+cada backup, por lo que los cambios no requieren reiniciar el servidor.
 
 ---
 
 ## Interfaz de Gestión Web
 
 ### GET /manage
-Interfaz web Vue.js para gestionar el scheduler y objetos S3.
+Interfaz web Vue.js para ejecutar backups y gestionar objetos S3.
 
 **Autenticación:** Token en query string (requerido)
 
@@ -583,8 +503,7 @@ GET /manage?api_token=tu-token
 | api_token | string | Sí | Token de API de `.env` |
 
 **Características:**
-- Dashboard con botones de backup manual (Database/Folders)
-- Gestión de jobs del scheduler (crear, editar, eliminar)
+- Dashboard con botones de backup (Database/Folders) vía webhook, con rotación automática
 - Navegador de objetos S3 con filtro por prefijo
 - Eliminación y descarga de objetos S3
 

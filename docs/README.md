@@ -4,10 +4,11 @@ Sistema integral de backup para carpetas locales y bases de datos con almacenami
 
 ## Características
 
-- **Backup manual** de carpetas (compresión ZIP) y bases de datos (PostgreSQL, MySQL)
+- **Backup vía webhook** de carpetas (compresión ZIP) y bases de datos (PostgreSQL, MySQL)
+- **Rotación automática** de backups antiguos tras cada backup (config/rotation.json)
 - **Almacenamiento S3** compatible (AWS S3, Cloudflare R2, MinIO)
 - **API REST completa** para gestión, monitoreo y visualización
-- **Interfaz web** de gestión (Vue.js) para scheduler y objetos S3
+- **Interfaz web** de gestión (Vue.js) para backups y objetos S3
 - **Logs avanzados** con rotación, filtros, búsqueda y exportación
 - **Seguridad** mediante token API, rate limiting, sanitización de entrada y helmet
 
