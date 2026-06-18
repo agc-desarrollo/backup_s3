@@ -3,4 +3,4 @@ logs
 temp
 .env
 config/config.json
-config/schedule.json
+config/rotation.json

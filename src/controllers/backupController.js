@@ -3,6 +3,7 @@ import Joi from 'joi';
 import { logger, backupLogger } from '../services/logger.js';
 import { backupService } from '../services/backupService.js';
 import { s3Service } from '../services/s3Service.js';
+import { rotationService } from '../services/rotationService.js';
 
 const router = express.Router();
 
@@ -33,13 +34,31 @@ router.post('/database', async (req, res) => {
       
       if (result.success) {
         backupLogger.info(`Backup de base de datos completado exitosamente por: ${userInfo}`);
-        
+
+        // Aplicar rotación si hay una política configurada para 'database' en rotation.json.
+        // No bloquea la respuesta del backup: si la rotación falla, el backup sigue siendo válido.
+        let rotation = null;
+        try {
+          const policy = rotationService.getPolicy('database');
+          if (policy) {
+            backupLogger.info('Aplicando rotación tras backup de base de datos...', policy);
+            rotation = await rotationService.applyRotation('database', policy);
+            backupLogger.info('Rotación completada:', rotation);
+          } else {
+            backupLogger.info('Sin política de rotación configurada para "database"; se omite.');
+          }
+        } catch (rotationError) {
+          backupLogger.error('Error al aplicar rotación tras backup de base de datos:', rotationError);
+          rotation = { error: rotationError.message };
+        }
+
         // Responder con el resultado del backup completado
         res.json({
           success: true,
           message: 'Backup de base de datos completado exitosamente',
           jobId: result.jobId,
-          result: result
+          result: result,
+          rotation
         });
       } else {
         backupLogger.error(`Backup de base de datos falló para: ${userInfo}`, {
@@ -94,16 +113,34 @@ router.post('/folders', async (req, res) => {
     // Ejecutar backup de carpetas usando configuración del config.json
     try {
       const result = await backupService.runFoldersBackup();
-      
+
       backupLogger.info(`Backup de carpetas completado para: ${userInfo}`, {
         result
       });
-      
+
+      // Aplicar rotación si hay una política configurada para 'folder' en rotation.json.
+      // No bloquea la respuesta: si la rotación falla, el backup sigue siendo válido.
+      let rotation = null;
+      try {
+        const policy = rotationService.getPolicy('folder');
+        if (policy) {
+          backupLogger.info('Aplicando rotación tras backup de carpetas...', policy);
+          rotation = await rotationService.applyRotation('folder', policy);
+          backupLogger.info('Rotación completada:', rotation);
+        } else {
+          backupLogger.info('Sin política de rotación configurada para "folder"; se omite.');
+        }
+      } catch (rotationError) {
+        backupLogger.error('Error al aplicar rotación tras backup de carpetas:', rotationError);
+        rotation = { error: rotationError.message };
+      }
+
       // Responder con éxito
       res.json({
         success: true,
         message: 'Backup de carpetas completado exitosamente',
-        data: result
+        data: result,
+        rotation
       });
       
     } catch (backupError) {
@@ -133,17 +170,11 @@ router.get('/status', (req, res) => {
   try {
     const currentJob = backupService.getCurrentJobStatus();
     const isRunning = backupService.isBackupRunning();
-    const schedulerStatus = {
-      enabled: true,
-      nextRun: null,
-      lastRun: null
-    };
 
     res.json({
       success: true,
       isRunning,
-      currentJob,
-      scheduler: schedulerStatus
+      currentJob
     });
 
   } catch (error) {

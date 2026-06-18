@@ -22,11 +22,11 @@ class S3Service {
         bucket: process.env.S3_BUCKET,
         accessKey: process.env.S3_ACCESS_KEY_ID,
         secretKey: process.env.S3_SECRET_ACCESS_KEY,
-        region: process.env.S3_REGION || 'us-east-1'
+        region: process.env.S3_REGION
       };
 
-      // Validar que todas las variables requeridas estén presentes
-      const requiredVars = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
+      // Validar que todas las variables requeridas estén presentes (sin fallback)
+      const requiredVars = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_REGION'];
       const missingVars = requiredVars.filter(varName => !process.env[varName]);
       
       if (missingVars.length > 0) {
@@ -36,7 +36,7 @@ class S3Service {
       // Configurar cliente S3
       this.client = new S3Client({
         endpoint: this.config.endpoint,
-        region: 'auto', // Para Cloudflare R2, usar 'auto'
+        region: this.config.region, // Para Cloudflare R2, usar 'auto'
         credentials: {
           accessKeyId: this.config.accessKey,
           secretAccessKey: this.config.secretKey

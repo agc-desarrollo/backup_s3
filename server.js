@@ -18,7 +18,7 @@ import { configService } from './src/services/configService.js';
 import { databaseService } from './src/services/databaseService.js';
 import { backupService } from './src/services/backupService.js';
 import { s3Service } from './src/services/s3Service.js';
-import { schedulerService } from './src/services/schedulerService.js';
+import { validateStartupConfig } from './src/services/startupValidator.js';
 import { backupController } from './src/controllers/backupController.js';
 import { configController } from './src/controllers/configController.js';
 import { logsController } from './src/controllers/logsController.js';
@@ -38,7 +38,7 @@ import {
 
 // Crear aplicación Express
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 // Configuración de seguridad básica para API
 app.use(helmet({
@@ -95,61 +95,6 @@ app.use('/api/backup', authMiddleware, backupController);
 app.use('/api/config', authMiddleware, configController);
 app.use('/api/logs', authMiddleware, logsController);
 app.use('/api/s3', authMiddleware, s3Controller);
-
-// Scheduler endpoints (no auth required - runs locally)
-app.get('/api/scheduler/status', (req, res) => {
-  res.json({ success: true, data: schedulerService.getStatus() });
-});
-
-app.get('/api/scheduler/jobs', (req, res) => {
-  res.json({ success: true, data: schedulerService.getJobs() });
-});
-
-app.post('/api/scheduler/run/:jobName', async (req, res) => {
-  try {
-    const { jobName } = req.params;
-    const result = await schedulerService.runJob(jobName);
-    res.json({ success: true, message: result.message });
-  } catch (error) {
-    res.status(404).json({ success: false, message: error.message });
-  }
-});
-
-app.post('/api/scheduler/reload', async (req, res) => {
-  try {
-    await schedulerService.reload();
-    res.json({ success: true, message: 'Scheduler recargado' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Scheduler CRUD endpoints
-app.put('/api/scheduler/jobs', authMiddleware, async (req, res) => {
-  try {
-    const job = req.body;
-    if (!job.name) {
-      return res.status(400).json({ success: false, message: 'Job name is required' });
-    }
-
-    const result = await schedulerService.saveJob(job);
-    res.json({ success: true, message: 'Job saved', data: result });
-  } catch (error) {
-    logger.error('Error saving job:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-app.delete('/api/scheduler/jobs/:jobName', authMiddleware, async (req, res) => {
-  try {
-    const { jobName } = req.params;
-    const result = await schedulerService.deleteJob(jobName);
-    res.json({ success: true, message: 'Job deleted', data: result });
-  } catch (error) {
-    logger.error('Error deleting job:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -233,6 +178,11 @@ async function startServer() {
     // Inicializar servicios
     logger.info('Iniciando API de backup S3...');
 
+    // Validar configuración crítica ANTES de arrancar. Si falta cualquier
+    // variable de entorno requerida o config/rotation.json, se aborta el inicio.
+    validateStartupConfig();
+    logger.info('Configuración de arranque validada correctamente');
+
     // Inicializar servicios en orden
     await configService.init();
 
@@ -256,39 +206,26 @@ async function startServer() {
 
     logger.info('Todos los servicios inicializados correctamente');
 
-    // Inicializar scheduler si está habilitado
-    if (process.env.ENABLE_SCHEDULER === 'true') {
-      logger.info('Inicializando scheduler de backups...');
-      const schedulerInitialized = await schedulerService.init();
-      if (schedulerInitialized) {
-        schedulerService.start();
-        logger.info('Scheduler de backups iniciado');
-      }
-    } else {
-      logger.info('Scheduler deshabilitado (establezca ENABLE_SCHEDULER=true para habilitar)');
-    }
+    // Los backups se ejecutan únicamente vía webhook (POST /api/backup/database
+    // y /api/backup/folders). La rotación se aplica automáticamente tras cada
+    // backup usando las políticas de config/rotation.json. No hay scheduler.
 
     // Iniciar servidor
     app.listen(PORT, () => {
       logger.info(`Servidor API iniciado en puerto ${PORT}`);
       console.log(`\n🚀 API de Backup S3 iniciada`);
       console.log(`📡 API disponible en: http://localhost:${PORT}/api`);
-      console.log(`💾 Backup manual: POST /api/backup/database`);
-      console.log(`📁 Backup carpetas: POST /api/backup/folders`);
+      console.log(`💾 Backup BD (webhook): POST /api/backup/database`);
+      console.log(`📁 Backup carpetas (webhook): POST /api/backup/folders`);
+      console.log(`♻️  Rotación: automática tras cada backup (config/rotation.json)`);
       console.log(`📋 Logs: GET /api/logs`);
       console.log(`❤️  Health check: GET /api/health`);
       console.log(`🔑 Autenticación: Header 'api-token'`);
-      if (process.env.ENABLE_SCHEDULER === 'true') {
-        console.log(`⏰ Scheduler: HABILITADO`);
-        console.log(`📋 Jobs: GET /api/scheduler/jobs`);
-        console.log(`📊 Estado: GET /api/scheduler/status`);
-      } else {
-        console.log(`⏰ Scheduler: DESHABILITADO (use ENABLE_SCHEDULER=true)`);
-      }
     });
 
   } catch (error) {
     logger.error('Error al iniciar el servidor:', error);
+    console.error(`\n❌ No se pudo iniciar el servidor:\n${error.message}\n`);
     process.exit(1);
   }
 }

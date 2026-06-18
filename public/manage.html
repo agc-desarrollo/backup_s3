@@ -45,21 +45,6 @@
       background: #3182ce;
     }
 
-    .status-dot {
-      height: 10px;
-      width: 10px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-
-    .status-running {
-      background: #48bb78;
-    }
-
-    .status-stopped {
-      background: #f56565;
-    }
-
     .table {
       background: white;
       border-radius: 8px;
@@ -109,12 +94,6 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="#" :class="{ active: activeTab === 'scheduler' }"
-                @click.prevent="activeTab = 'scheduler'">
-                <i class="bi bi-clock me-2"></i> Scheduler
-              </a>
-            </li>
-            <li class="nav-item">
               <a class="nav-link" href="#" :class="{ active: activeTab === 's3' }" @click.prevent="activeTab = 's3'">
                 <i class="bi bi-cloud me-2"></i> S3 Objects
               </a>
@@ -133,7 +112,11 @@
               <div class="col-12">
                 <div class="card">
                   <div class="card-body">
-                    <h5 class="card-title mb-3"><i class="bi bi-lightning-charge"></i> Quick Actions</h5>
+                    <h5 class="card-title mb-3"><i class="bi bi-lightning-charge"></i> Backups (webhook)</h5>
+                    <p class="text-muted small mb-3">
+                      Cada backup aplica automáticamente la rotación según
+                      <code>config/rotation.json</code>.
+                    </p>
                     <div class="d-flex gap-2">
                       <button class="btn btn-primary" @click="runBackup('database')" :disabled="backupRunning">
                         <i class="bi bi-database me-2"></i>Database Backup
@@ -152,20 +135,7 @@
 
             <!-- Status Cards -->
             <div class="row mb-4">
-              <div class="col-md-4">
-                <div class="card">
-                  <div class="card-body">
-                    <h6 class="text-muted">Scheduler Status</h6>
-                    <h4>
-                      <span class="status-dot"
-                        :class="schedulerStatus.isRunning ? 'status-running' : 'status-stopped'"></span>
-                      {{ schedulerStatus.isRunning ? 'Running' : 'Stopped' }}
-                    </h4>
-                    <small class="text-muted">{{ schedulerStatus.jobsConfigured || 0 }} jobs configured</small>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <div class="card">
                   <div class="card-body">
                     <h6 class="text-muted">S3 Objects</h6>
@@ -174,7 +144,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <div class="card">
                   <div class="card-body">
                     <h6 class="text-muted">Last Backup</h6>
@@ -183,115 +153,6 @@
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Recent Jobs -->
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">Scheduled Jobs</h5>
-                <div class="table-responsive">
-                  <table class="table table-hover">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Schedule</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="job in jobs" :key="job.name">
-                        <td>{{ job.name }}</td>
-                        <td><span class="badge" :class="job.type === 'database' ? 'bg-info' : 'bg-warning'">{{ job.type
-                            }}</span></td>
-                        <td>{{ formatSchedule(job) }}</td>
-                        <td><span class="badge" :class="job.enabled ? 'bg-success' : 'bg-secondary'">{{ job.enabled ?
-                            'Enabled' : 'Disabled' }}</span></td>
-                        <td>
-                          <button class="btn btn-sm btn-outline-primary" @click="runJob(job.name)" title="Run now">
-                            <i class="bi bi-play"></i>
-                          </button>
-                        </td>
-                      </tr>
-                      <tr v-if="jobs.length === 0">
-                        <td colspan="5" class="text-center text-muted">No jobs configured</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Scheduler Tab -->
-          <div v-if="activeTab === 'scheduler'">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <h4>Scheduler Management</h4>
-              <button class="btn btn-primary" @click="showJobModal()">
-                <i class="bi bi-plus-circle me-2"></i>New Job
-              </button>
-            </div>
-
-            <div class="card">
-              <div class="card-body">
-                <div class="table-responsive">
-                  <table class="table table-hover">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Type</th>
-                        <th>Schedule</th>
-                        <th>Rotation</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="job in jobs" :key="job.name">
-                        <td><strong>{{ job.name }}</strong></td>
-                        <td>{{ job.description || '-' }}</td>
-                        <td><span class="badge" :class="job.type === 'database' ? 'bg-info' : 'bg-warning'">{{ job.type
-                            }}</span></td>
-                        <td>{{ formatSchedule(job) }}</td>
-                        <td>
-                          <small v-if="job.rotation">
-                            Last: {{ job.rotation.keepLast || '-' }}<br>
-                            Weeks: {{ job.rotation.keepWeeks || '-' }}
-                          </small>
-                        </td>
-                        <td>
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" v-model="job.enabled"
-                              @change="toggleJob(job)">
-                          </div>
-                        </td>
-                        <td>
-                          <button class="btn btn-sm btn-outline-primary me-1" @click="showJobModal(job)" title="Edit">
-                            <i class="bi bi-pencil"></i>
-                          </button>
-                          <button class="btn btn-sm btn-outline-danger" @click="deleteJob(job.name)" title="Delete">
-                            <i class="bi bi-trash"></i>
-                          </button>
-                          <button class="btn btn-sm btn-outline-success" @click="runJob(job.name)" title="Run now">
-                            <i class="bi bi-play"></i>
-                          </button>
-                        </td>
-                      </tr>
-                      <tr v-if="jobs.length === 0">
-                        <td colspan="7" class="text-center text-muted">No jobs configured</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-3">
-              <button class="btn btn-secondary" @click="reloadScheduler">
-                <i class="bi bi-arrow-clockwise me-2"></i>Reload Scheduler
-              </button>
             </div>
           </div>
 
@@ -311,7 +172,7 @@
                   <div class="col-md-6">
                     <label class="form-label">Prefix Filter</label>
                     <div class="input-group">
-                      <input type="text" class="form-control" v-model="s3Prefix" placeholder="e.g., backups/database/">
+                      <input type="text" class="form-control" v-model="s3Prefix" placeholder="e.g., backups/database ">
                       <button class="btn btn-primary" @click="loadS3Objects">Apply</button>
                     </div>
                   </div>
@@ -365,69 +226,6 @@
         </main>
       </div>
     </div>
-
-    <!-- Job Modal -->
-    <div class="modal fade" id="jobModal" tabindex="-1" ref="jobModal">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">{{ editingJob ? 'Edit Job' : 'New Job' }}</h5>
-            <button type="button" class="btn-close" @click="closeJobModal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label">Job Name</label>
-              <input type="text" class="form-control" v-model="jobForm.name" :disabled="editingJob">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Description</label>
-              <input type="text" class="form-control" v-model="jobForm.description">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Type</label>
-              <select class="form-select" v-model="jobForm.type">
-                <option value="folder">Folder</option>
-                <option value="database">Database</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Time (HH:MM)</label>
-              <input type="time" class="form-control" v-model="jobForm.time">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Days</label>
-              <div class="d-flex gap-2">
-                <div class="form-check" v-for="(day, index) in daysOfWeek" :key="index">
-                  <input class="form-check-input" type="checkbox" :value="index" v-model="jobForm.days">
-                  <label class="form-check-label">{{ day }}</label>
-                </div>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Rotation - Keep Last</label>
-              <input type="number" class="form-control" v-model.number="jobForm.rotation.keepLast">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Rotation - Keep Weeks</label>
-              <input type="number" class="form-control" v-model.number="jobForm.rotation.keepWeeks">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Rotation - Keep Months</label>
-              <input type="number" class="form-control" v-model.number="jobForm.rotation.keepMonths">
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" v-model="jobForm.enabled">
-              <label class="form-check-label">Enabled</label>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="closeJobModal">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="saveJob">{{ editingJob ? 'Update' : 'Create'
-              }}</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -440,21 +238,15 @@
           activeTab: 'dashboard',
           loading: false,
           token: '',
-          jobs: [],
           s3Objects: [],
           s3NextToken: null,
           s3Prefix: '',
           s3Stats: {},
-          schedulerStatus: { running: false, jobsCount: 0 },
           lastBackup: null,
           lastBackupType: null,
           backupRunning: false,
           backupMessage: '',
-          backupMessageClass: '',
-          editingJob: null,
-          jobModal: null,
-          jobForm: this.getDefaultJobForm(),
-          daysOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+          backupMessageClass: ''
         };
       },
       mounted() {
@@ -466,12 +258,7 @@
           alert('No API token provided. Add ?api_token=YOUR_TOKEN to the URL.');
         }
 
-        // Initialize modal
-        this.jobModal = new bootstrap.Modal(this.$refs.jobModal);
-
         // Load initial data
-        this.loadSchedulerStatus();
-        this.loadJobs();
         this.loadS3Stats();
         this.loadS3Objects();
       },
@@ -492,43 +279,7 @@
           return response.json();
         },
 
-        // Scheduler Methods
-        async loadSchedulerStatus() {
-          const result = await this.apiCall('/api/scheduler/status');
-          if (result.success) {
-            this.schedulerStatus = result.data;
-          }
-        },
-
-        async loadJobs() {
-          const result = await this.apiCall('/api/scheduler/jobs');
-          if (result.success) {
-            this.jobs = result.data || [];
-          }
-        },
-
-        async runJob(jobName) {
-          this.loading = true;
-          try {
-            const result = await this.apiCall(`/api/scheduler/run/${jobName}`, { method: 'POST' });
-            alert(result.message || result.success ? 'Job started' : 'Error');
-          } finally {
-            this.loading = false;
-          }
-        },
-
-        async reloadScheduler() {
-          this.loading = true;
-          try {
-            const result = await this.apiCall('/api/scheduler/reload', { method: 'POST' });
-            alert(result.message);
-            this.loadJobs();
-          } finally {
-            this.loading = false;
-          }
-        },
-
-        // Backup Methods
+        // Backup Methods (webhook) - la rotación se aplica en el servidor
         async runBackup(type) {
           this.backupRunning = true;
           this.backupMessage = '';
@@ -537,10 +288,11 @@
             const result = await this.apiCall(endpoint, { method: 'POST' });
 
             if (result.success) {
-              this.backupMessage = result.message || `${type} backup started successfully`;
+              this.backupMessage = result.message || `${type} backup completado`;
               this.backupMessageClass = 'alert-success';
               this.lastBackup = new Date().toLocaleString();
               this.lastBackupType = type.charAt(0).toUpperCase() + type.slice(1);
+              this.loadS3Stats();
             } else {
               this.backupMessage = result.message || 'Backup failed';
               this.backupMessageClass = 'alert-danger';
@@ -625,99 +377,7 @@
           return `/api/s3/objects/${encodeURIComponent(key)}/download?api_token=${this.token}`;
         },
 
-        // Job Modal Methods
-        getDefaultJobForm() {
-          return {
-            name: '',
-            description: '',
-            type: 'folder',
-            time: '23:00',
-            days: [1, 2, 3, 4, 5],
-            rotation: { keepLast: 10, keepWeeks: 3, keepMonths: 2 },
-            enabled: true
-          };
-        },
-
-        showJobModal(job = null) {
-          if (job) {
-            this.editingJob = job.name;
-            this.jobForm = { ...job, rotation: { ...job.rotation } };
-          } else {
-            this.editingJob = null;
-            this.jobForm = this.getDefaultJobForm();
-          }
-          this.jobModal.show();
-        },
-
-        closeJobModal() {
-          this.jobModal.hide();
-        },
-
-        async saveJob() {
-          if (!this.jobForm.name) {
-            alert('Job name is required');
-            return;
-          }
-
-          this.loading = true;
-          try {
-            // Save to config file via API
-            const result = await this.apiCall('/api/scheduler/jobs', {
-              method: 'PUT',
-              body: JSON.stringify(this.jobForm)
-            });
-
-            alert(result.message || 'Job saved');
-            if (result.success) {
-              this.closeJobModal();
-              this.loadJobs();
-              this.reloadScheduler();
-            }
-          } finally {
-            this.loading = false;
-          }
-        },
-
-        async toggleJob(job) {
-          this.loading = true;
-          try {
-            const result = await this.apiCall('/api/scheduler/jobs', {
-              method: 'PUT',
-              body: JSON.stringify(job)
-            });
-            if (!result.success) {
-              job.enabled = !job.enabled; // Revert on error
-              alert(result.message);
-            }
-          } finally {
-            this.loading = false;
-          }
-        },
-
-        async deleteJob(jobName) {
-          if (!confirm(`Delete job ${jobName}?`)) return;
-
-          this.loading = true;
-          try {
-            const result = await this.apiCall(`/api/scheduler/jobs/${jobName}`, { method: 'DELETE' });
-            alert(result.message);
-            if (result.success) {
-              this.loadJobs();
-              this.reloadScheduler();
-            }
-          } finally {
-            this.loading = false;
-          }
-        },
-
         // Formatters
-        formatSchedule(job) {
-          if (!job.time) return '-';
-          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          const dayList = (job.days || []).map(d => days[d]).join(', ');
-          return `${job.time} - ${dayList}`;
-        },
-
         formatBytes(bytes) {
           if (!bytes) return '0 B';
           const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];

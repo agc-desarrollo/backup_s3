@@ -1,16 +1,44 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { s3Service } from './s3Service.js';
 import { logger } from './logger.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 /**
- * RotationService - Maneja la política de retención de backups en S3
+ * RotationService - Maneja la política de retención de backups en S3.
+ * Las políticas se leen de config/rotation.json (referencia para la rotación).
  */
 class RotationService {
   constructor() {
-    // Prefijos para cada tipo de backup
+    // Prefijos para cada tipo de backup. Deben coincidir con las claves reales
+    // generadas en s3Service.generateBackupKey() (p.ej. "backups/database 2026-...zip").
     this.prefixes = {
-      folder: 'backups/folders/',
-      database: 'backups/databases/'
+      folder: 'backups/carpetas ',
+      database: 'backups/database '
     };
+    this.configPath = path.join(__dirname, '../../config/rotation.json');
+  }
+
+  /**
+   * Lee config/rotation.json y devuelve la política de retención para el tipo
+   * indicado ('database' | 'folder'), o null si no existe el archivo/tipo.
+   * Se lee en cada llamada para que los cambios surtan efecto sin reiniciar.
+   */
+  getPolicy(type) {
+    try {
+      if (!fs.existsSync(this.configPath)) {
+        logger.warn('config/rotation.json no encontrado; se omite la rotación.');
+        return null;
+      }
+      const data = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
+      return data?.[type] || null;
+    } catch (error) {
+      logger.error('Error al leer config/rotation.json: ' + error.message);
+      return null;
+    }
   }
 
   /**

@@ -1,0 +1,19 @@
+{
+  "_comment": "Políticas de retención aplicadas tras cada backup (vía webhook). Claves por tipo: 'database' y 'folder'.",
+  "_policy_fields": {
+    "keepLast": "Mantener los N backups más recientes",
+    "keepDays": "Mantener backups de los últimos N días",
+    "keepWeeks": "Mantener un backup por semana, últimas N semanas",
+    "keepMonths": "Mantener un backup por mes, últimos N meses"
+  },
+  "database": {
+    "keepLast": 10,
+    "keepWeeks": 3,
+    "keepMonths": 2
+  },
+  "folder": {
+    "keepLast": 10,
+    "keepWeeks": 3,
+    "keepMonths": 2
+  }
+}
