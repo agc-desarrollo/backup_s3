@@ -95,14 +95,14 @@ class RotationService {
     
     do {
       const result = await s3Service.listObjects(prefix, 1000, continuationToken);
-      if (result.Contents) {
-        objects.push(...result.Contents.map(obj => ({
+      if (result.objects) {
+        objects.push(...result.objects.map(obj => ({
           key: obj.Key,
           lastModified: obj.LastModified,
           size: obj.Size
         })));
       }
-      continuationToken = result.NextContinuationToken;
+      continuationToken = result.nextToken;
     } while (continuationToken);
 
     // Ordenar por fecha de modificación (más reciente primero)
