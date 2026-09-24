@@ -7,9 +7,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test-api-services.js",
-    "test:api": "node test-api-services.js",
-    "test:s3": "node test-s3-service.js"
+    "test": "node test-folders-backup.js && node test-database-backup.js",
+    "test:folders": "node test-folders-backup.js",
+    "test:database": "node test-database-backup.js"
   },
   "keywords": [
     "backup",
